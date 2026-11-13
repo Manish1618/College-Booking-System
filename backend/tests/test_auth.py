@@ -1,6 +1,7 @@
 import re
 
 import pytest
+import requests
 from django.core import mail
 from django_otp.oath import TOTP
 from django_otp.plugins.otp_totp.models import TOTPDevice
@@ -186,3 +187,44 @@ def test_staff_totp_enrol_and_verify(manager):
 
 def test_totp_is_for_staff_only(requester):
     assert client_for(requester).post("/api/auth/totp/setup").status_code == 403
+
+
+class FakeTurnstile:
+    def __init__(self, success):
+        self.success = success
+        self.calls = []
+
+    def __call__(self, url, data, timeout):
+        self.calls.append(data)
+        if self.success is None:
+            raise requests.ConnectionError("down")
+
+        class Response:
+            json = staticmethod(lambda: {"success": self.success})
+
+        return Response()
+
+
+def test_turnstile_guards_code_requests_when_configured(settings, monkeypatch):
+    settings.TURNSTILE_SITE_KEY, settings.TURNSTILE_SECRET_KEY = "site-key", "secret-key"
+    client = APIClient()
+    assert client.get("/api/auth/csrf").data["turnstile_site_key"] == "site-key"
+
+    passing = FakeTurnstile(True)
+    monkeypatch.setattr(requests, "post", passing)
+    body = {"identifier": "a@example.com"}
+    assert client.post("/api/auth/otp/request", body, format="json").status_code == 400  # no token
+    assert passing.calls == []
+    assert client.post("/api/auth/otp/request", {**body, "turnstile_token": "tok"}, format="json").status_code == 200
+    assert passing.calls[0]["secret"] == "secret-key" and passing.calls[0]["response"] == "tok"
+
+    for outcome in (False, None):  # challenge failed, or Cloudflare unreachable: fail closed
+        monkeypatch.setattr(requests, "post", FakeTurnstile(outcome))
+        assert (
+            client.post("/api/auth/otp/request", {**body, "turnstile_token": "tok"}, format="json").status_code == 400
+        )
+    assert len(mail.outbox) == 1
+
+
+def test_turnstile_is_off_by_default():
+    assert APIClient().get("/api/auth/csrf").data["turnstile_site_key"] == ""

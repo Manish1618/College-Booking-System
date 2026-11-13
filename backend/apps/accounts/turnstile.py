@@ -10,7 +10,7 @@ VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 
 
 def verify(request):
-    """Checks the Cloudflare Turnstile token on a form post. Skipped until a secret is configured."""
+    """Checks the Cloudflare Turnstile token on a form post. Skipped until the key pair is configured."""
     if not settings.TURNSTILE_SECRET_KEY:
         return True
     token = request.data.get("turnstile_token", "")

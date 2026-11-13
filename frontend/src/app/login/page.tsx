@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Button, Card, Field, Input, Notice, PageTitle } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -23,10 +23,13 @@ export default function LoginPage() {
   const [sent, setSent] = useState<{ channel: string; debug_code?: string } | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [oidc, setOidc] = useState(false);
+  const [setup, setSetup] = useState({ oidc_enabled: false, turnstile_site_key: "" });
+  const [challenge, setChallenge] = useState({ token: "", round: 0 });
+  const oidc = setup.oidc_enabled;
+  const siteKey = setup.turnstile_site_key;
 
   useEffect(() => {
-    api<{ oidc_enabled: boolean }>("/auth/csrf").then((r) => setOidc(r.oidc_enabled)).catch(() => {});
+    api<typeof setup>("/auth/csrf").then(setSetup).catch(() => {});
   }, []);
 
   const needsMfa = !!me && me.mfa.required && !me.mfa.verified;
@@ -67,9 +70,14 @@ export default function LoginPage() {
             className="space-y-4"
             onSubmit={(e) => {
               e.preventDefault();
-              run(async () =>
-                setSent(await api("/auth/otp/request", { body: { identifier } })),
-              );
+              run(async () => {
+                try {
+                  setSent(await api("/auth/otp/request", { body: { identifier, turnstile_token: challenge.token } }));
+                } finally {
+                  // A Turnstile token works once, so start a fresh challenge whatever happened.
+                  setChallenge((c) => ({ token: "", round: c.round + 1 }));
+                }
+              });
             }}
           >
             <Field label="Email or mobile number" hint="College members: use your college email address.">
@@ -82,7 +90,14 @@ export default function LoginPage() {
                 onChange={(e) => setIdentifier(e.target.value)}
               />
             </Field>
-            <Button type="submit" disabled={busy} className="w-full">
+            {siteKey && (
+              <Turnstile
+                key={challenge.round}
+                siteKey={siteKey}
+                onToken={(token) => setChallenge((c) => ({ ...c, token }))}
+              />
+            )}
+            <Button type="submit" disabled={busy || (!!siteKey && !challenge.token)} className="w-full">
               Send code
             </Button>
             {oidc && (
@@ -222,4 +237,51 @@ function TotpStep({ me, onDone }: { me: Me; onDone: () => void }) {
       </Card>
     </div>
   );
+}
+
+type TurnstileApi = {
+  render: (el: HTMLElement, options: Record<string, unknown>) => string;
+  remove: (id: string) => void;
+};
+
+/** Cloudflare Turnstile challenge. Reports a token when solved and an empty string when it lapses. */
+function Turnstile({ siteKey, onToken }: { siteKey: string; onToken: (token: string) => void }) {
+  const box = useRef<HTMLDivElement>(null);
+  const report = useRef(onToken);
+  useEffect(() => {
+    report.current = onToken;
+  });
+
+  useEffect(() => {
+    const turnstile = () => (window as unknown as { turnstile?: TurnstileApi }).turnstile;
+    let widget: string | undefined;
+    let gone = false;
+    const render = () => {
+      if (gone || !box.current || !turnstile()) return;
+      widget = turnstile()!.render(box.current, {
+        sitekey: siteKey,
+        callback: (token: string) => report.current(token),
+        "expired-callback": () => report.current(""),
+        "error-callback": () => report.current(""),
+      });
+    };
+    if (turnstile()) render();
+    else {
+      const src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+      let script = document.querySelector<HTMLScriptElement>(`script[src="${src}"]`);
+      if (!script) {
+        script = document.createElement("script");
+        script.src = src;
+        script.async = true;
+        document.head.appendChild(script);
+      }
+      script.addEventListener("load", render);
+    }
+    return () => {
+      gone = true;
+      if (widget) turnstile()?.remove(widget);
+    };
+  }, [siteKey]);
+
+  return <div ref={box} />;
 }

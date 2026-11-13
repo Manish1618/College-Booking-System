@@ -4,6 +4,7 @@ from pathlib import Path
 
 import environ
 from celery.schedules import crontab
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -117,8 +118,12 @@ if OIDC_ENABLED:
     LOGOUT_REDIRECT_URL = "/"
     LOGIN_REDIRECT_URL_FAILURE = "/login?error=sso"
 
-# Cloudflare Turnstile. Verification is skipped while the secret is empty.
+# Cloudflare Turnstile on the sign-in form. Off while both keys are empty; they only work as a pair,
+# because the server rejects sign-in requests that lack the token the site key's widget produces.
+TURNSTILE_SITE_KEY = env("TURNSTILE_SITE_KEY", default="")
 TURNSTILE_SECRET_KEY = env("TURNSTILE_SECRET_KEY", default="")
+if bool(TURNSTILE_SITE_KEY) != bool(TURNSTILE_SECRET_KEY):
+    raise ImproperlyConfigured("Set both TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY, or neither.")
 
 SESSION_ENGINE = "django.contrib.sessions.backends.cached_db"
 SESSION_COOKIE_HTTPONLY = True

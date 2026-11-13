@@ -122,7 +122,7 @@ npm ci && npm run dev                      # http://localhost:3000, proxies /api
 
 ```bash
 cd backend
-pytest --cov=apps                 # 105 tests; needs PostgreSQL
+pytest --cov=apps                 # 107 tests; needs PostgreSQL
 ruff check . && ruff format --check .
 bandit -q -r apps config -ll
 pip-audit -r requirements.txt
@@ -150,7 +150,7 @@ The ones that need a decision before go-live:
 | `PAYMENT_GATEWAYS` | `dev` in the example file, empty in code | `dev` is a simulated payment; remove it in production |
 | `S3_ENABLED` and `S3_*` | off | Private encrypted bucket for letters, ID copies and photo originals |
 | `EMAIL_BACKEND`, `SMS_BACKEND` | console | Real mail server and SMS provider |
-| `TURNSTILE_SECRET_KEY` | empty | Turns on the Cloudflare Turnstile check for sign-in |
+| `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` | empty | Set both to put the Cloudflare Turnstile check on the sign-in form |
 
 For production set `DEBUG=false`, a long random `SECRET_KEY`, `OTP_DEBUG_ECHO=false`, the real domain
 in `SITE_ADDRESS`, `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS`, and start with

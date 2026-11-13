@@ -36,13 +36,13 @@ def _identifier(request):
 
 @method_decorator(ensure_csrf_cookie, name="dispatch")
 class CsrfView(APIView):
-    """Sets the CSRF cookie so the frontend can make its first POST."""
+    """Sets the CSRF cookie so the frontend can make its first POST, and tells it how sign-in is set up."""
 
     permission_classes = [AllowAny]
     authentication_classes = []
 
     def get(self, request):
-        return Response({"oidc_enabled": settings.OIDC_ENABLED})
+        return Response({"oidc_enabled": settings.OIDC_ENABLED, "turnstile_site_key": settings.TURNSTILE_SITE_KEY})
 
 
 @method_decorator(csrf_protect, name="dispatch")
@@ -52,7 +52,7 @@ class OTPRequestView(APIView):
 
     def post(self, request):
         if not turnstile.verify(request):
-            raise DRFValidationError({"turnstile_token": ["Verification failed. Please try again."]})
+            raise DRFValidationError({"detail": "The human check did not pass. Please try again."})
         kind, identifier = _identifier(request)
         # Limits are applied here (not as decorators) so the parsed JSON body is available.
         limited = is_ratelimited(
