@@ -2,10 +2,12 @@ from django.core.files.storage import default_storage
 from django.utils import timezone
 from rest_framework import serializers
 
+from config.serializers import WritesOnlyChangedFields
+
 from .models import Room, RoomPhoto, RoomType, Tariff
 
 
-class RoomPhotoSerializer(serializers.ModelSerializer):
+class RoomPhotoSerializer(WritesOnlyChangedFields, serializers.ModelSerializer):
     urls = serializers.SerializerMethodField()
 
     class Meta:
@@ -24,7 +26,7 @@ class TariffSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "changed_by", "created_at"]
 
 
-class RoomTypeSerializer(serializers.ModelSerializer):
+class RoomTypeSerializer(WritesOnlyChangedFields, serializers.ModelSerializer):
     photos = RoomPhotoSerializer(many=True, read_only=True)
     price_per_night = serializers.SerializerMethodField()
     room_count = serializers.SerializerMethodField()
@@ -52,7 +54,7 @@ class RoomTypeSerializer(serializers.ModelSerializer):
         return sum(1 for room in room_type.rooms.all() if room.is_active)
 
 
-class RoomSerializer(serializers.ModelSerializer):
+class RoomSerializer(WritesOnlyChangedFields, serializers.ModelSerializer):
     room_type_name = serializers.CharField(source="room_type.name", read_only=True)
 
     class Meta:

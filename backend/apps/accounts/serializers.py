@@ -3,11 +3,13 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django_otp import devices_for_user
 from rest_framework import serializers
 
+from config.serializers import WritesOnlyChangedFields
+
 from .models import STAFF_ROLES, User
 from .otp import normalise_identifier
 
 
-class MeSerializer(serializers.ModelSerializer):
+class MeSerializer(WritesOnlyChangedFields, serializers.ModelSerializer):
     mfa = serializers.SerializerMethodField()
 
     class Meta:
@@ -24,7 +26,7 @@ class MeSerializer(serializers.ModelSerializer):
         }
 
 
-class AdminUserSerializer(serializers.ModelSerializer):
+class AdminUserSerializer(WritesOnlyChangedFields, serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ["id", "name", "email", "phone", "role", "department", "is_active", "date_joined", "last_login"]

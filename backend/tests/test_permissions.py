@@ -283,3 +283,33 @@ def test_admin_set_phone_is_stored_the_way_sign_in_looks_it_up(admin, requester)
     assert client.patch(f"/api/users/{user.pk}", {"phone": "98765 43210"}, format="json").status_code == 200
     resp = client.patch(f"/api/users/{requester.pk}", {"phone": "9123456780"}, format="json")
     assert resp.status_code == 200 and resp.data["phone"] == "+919123456780"
+
+
+@pytest.mark.django_db
+def test_profile_edit_does_not_restore_access_removed_meanwhile(manager, admin, requester, monkeypatch):
+    """A name change that started before an admin revoked the account must not undo the revocation."""
+    from apps.accounts.models import User
+    from apps.accounts.serializers import MeSerializer
+
+    real_is_valid = MeSerializer.is_valid
+
+    def revoked_while_the_request_was_running(serializer, **kwargs):
+        valid = real_is_valid(serializer, **kwargs)
+        User.objects.filter(pk=manager.pk).update(role=Role.EXTERNAL, is_superuser=False, is_active=False)
+        return valid
+
+    client = client_for(manager)
+    monkeypatch.setattr(MeSerializer, "is_valid", revoked_while_the_request_was_running)
+    assert client.patch("/api/auth/me", {"name": "New Name"}, format="json").status_code == 200
+    manager.refresh_from_db()
+    assert (manager.name, manager.role, manager.is_active) == ("New Name", Role.EXTERNAL, False)
+    monkeypatch.undo()
+
+    # A role change through the admin screen still keeps the superuser flag in step with the role.
+    desk = client_for(admin)
+    assert desk.patch(f"/api/users/{requester.pk}", {"role": "ADMIN"}, format="json").status_code == 200
+    requester.refresh_from_db()
+    assert (requester.role, requester.is_superuser) == (Role.ADMIN, True)
+    assert desk.patch(f"/api/users/{requester.pk}", {"role": "REQUESTER"}, format="json").status_code == 200
+    requester.refresh_from_db()
+    assert (requester.role, requester.is_superuser) == (Role.REQUESTER, False)

@@ -54,6 +54,9 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def save(self, *args, **kwargs):
         self.is_superuser = self.role == Role.ADMIN
+        fields = kwargs.get("update_fields")
+        if fields is not None and "role" in fields:
+            kwargs["update_fields"] = {*fields, "is_superuser"}  # the two always change together
         super().save(*args, **kwargs)
 
     @property
