@@ -1,0 +1,8 @@
+# Production overrides:  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# Set SITE_ADDRESS to the public domain in .env so Caddy obtains a TLS certificate.
+services:
+  caddy:
+    ports: !override
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"

@@ -1,0 +1,30 @@
+@import "tailwindcss";
+@import "react-day-picker/style.css";
+
+@theme {
+  --color-brand-50: #eef6f6;
+  --color-brand-100: #d5e9e8;
+  --color-brand-600: #0f6b6b;
+  --color-brand-700: #0b5555;
+  --color-brand-900: #083838;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+body {
+  background: #f6f7f8;
+  color: #1c2526;
+}
+
+.rdp-root {
+  --rdp-accent-color: #0f6b6b;
+  --rdp-accent-background-color: #d5e9e8;
+  --rdp-day-height: 2.5rem;
+  --rdp-day-width: 2.5rem;
+  --rdp-day_button-height: 2.4rem;
+  --rdp-day_button-width: 2.4rem;
+}
+
+:focus-visible {
+  outline: 2px solid #0f6b6b;
+  outline-offset: 2px;
+}
