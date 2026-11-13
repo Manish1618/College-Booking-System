@@ -181,3 +181,28 @@ def test_slow_resize_of_a_replaced_photo_does_not_put_the_old_picture_back(manag
     tasks.process_room_photo(str(photo.pk))
     photo.refresh_from_db()
     assert all(new_stem in path for path in photo.variants.values())
+
+
+def test_photo_edit_does_not_undo_a_resize_that_finished_meanwhile(manager, room_type, monkeypatch):
+    """A caption edit that read the photo before its copies were published must not blank them again."""
+    from apps.rooms.views import RoomPhotoViewSet
+
+    desk = client_for(manager)
+    created = desk.post(
+        f"/api/room-types/{room_type.pk}/photos", {"file": upload("a.png", png_bytes((800, 600)))}, format="multipart"
+    )
+    photo = RoomPhoto.objects.get(pk=created.data["id"])
+    published = dict(photo.variants)
+    assert published
+    real_get_object = RoomPhotoViewSet.get_object
+
+    def read_before_the_task_published(view):
+        stale = real_get_object(view)
+        stale.variants = {}  # what the request saw: still processing
+        return stale
+
+    monkeypatch.setattr(RoomPhotoViewSet, "get_object", read_before_the_task_published)
+    resp = desk.patch(f"/api/photos/{photo.pk}", {"caption": "Window side"}, format="json")
+    assert resp.status_code == 200
+    photo.refresh_from_db()
+    assert photo.caption == "Window side" and photo.variants == published

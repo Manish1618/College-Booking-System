@@ -1,5 +1,7 @@
 /** Thin fetch wrapper: same-origin session cookie, CSRF header, JSON or multipart bodies. */
 
+import type { Page } from "./types";
+
 export class ApiError extends Error {
   status: number;
   fields: Record<string, string[]>;
@@ -58,6 +60,16 @@ export async function api<T = unknown>(path: string, options: { method?: string;
   const data = await response.json().catch(() => null);
   if (!response.ok) throw new ApiError(response.status, data);
   return data as T;
+}
+
+/** Every page of a paginated list, for short lists that feed a selector. Long lists are paged on screen. */
+export async function apiAll<T>(path: string): Promise<T[]> {
+  const items: T[] = [];
+  for (let page = 1; ; page++) {
+    const data = await api<Page<T>>(`${path}${path.includes("?") ? "&" : "?"}page=${page}`);
+    items.push(...data.results);
+    if (!data.next) return items;
+  }
 }
 
 export const inr = (amount: string | number | null | undefined) =>

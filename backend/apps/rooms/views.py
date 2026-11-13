@@ -102,11 +102,14 @@ class RoomPhotoViewSet(viewsets.GenericViewSet):
 
     def partial_update(self, request, pk=None):
         photo = self.get_object()
-        serializer = self.get_serializer(photo, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
         upload = request.FILES.get("file")
         old_ref = None
         with transaction.atomic():
+            # Read again under a lock. The resize task publishes its copies under the same lock, so this
+            # save cannot write back an older value of them.
+            photo = RoomPhoto.objects.select_for_update().get(pk=photo.pk)
+            serializer = self.get_serializer(photo, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
             if serializer.validated_data.get("is_cover"):
                 RoomPhoto.objects.filter(room_type=photo.room_type, is_cover=True).exclude(pk=photo.pk).update(
                     is_cover=False

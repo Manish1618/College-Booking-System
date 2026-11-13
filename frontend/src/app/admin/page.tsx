@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { Button, Card, Field, Input, inputClass, Loading, Notice, PageTitle } from "@/components/ui";
-import { api, fmtDateTime } from "@/lib/api";
+import { api, apiAll, fmtDateTime } from "@/lib/api";
 import { isAdmin, useMe, useRefresh } from "@/lib/hooks";
 import type { AdminUser, ApprovalRule, AuditEntry, Page, Role } from "@/lib/types";
 
@@ -30,7 +30,7 @@ export default function AdminPage() {
   });
   const approvers = useQuery({
     queryKey: ["users", "approvers"],
-    queryFn: () => api<Page<AdminUser>>("/users?role=APPROVER"),
+    queryFn: () => apiAll<AdminUser>("/users?role=APPROVER"),
     enabled: allowed,
   });
   const rules = useQuery({ queryKey: ["approval-rules"], queryFn: () => api<ApprovalRule[]>("/approval-rules"), enabled: allowed });
@@ -124,6 +124,11 @@ export default function AdminPage() {
             </tbody>
           </table>
         </div>
+        {users.data && users.data.count > users.data.results.length && (
+          <p className="mt-2 text-sm text-slate-600">
+            Showing the first {users.data.results.length} of {users.data.count} users. Search to find the others.
+          </p>
+        )}
       </Card>
 
       <Card>
@@ -144,7 +149,7 @@ export default function AdminPage() {
           ))}
           {rules.data?.length === 0 && <li className="text-slate-600">No rules yet.</li>}
         </ul>
-        <AddRule approvers={approvers.data?.results ?? []} run={run} />
+        <AddRule approvers={approvers.data ?? []} run={run} />
       </Card>
 
       <Card>
