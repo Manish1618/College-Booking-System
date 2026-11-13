@@ -1,0 +1,35 @@
+# Reverse proxy: pages go to Next.js, /api and the staff admin go to Django.
+# SITE_ADDRESS is ":8080" for local use. Set it to the real domain in production and Caddy gets TLS by itself.
+{$SITE_ADDRESS::8080} {
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy same-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
+	# Uploads are capped at 5 MB by the app; refuse anything much larger before it reaches it.
+	request_body {
+		max_size 6MB
+	}
+
+	@django path /api/* /django-admin/*
+	handle @django {
+		reverse_proxy backend:8000
+	}
+
+	# Django admin assets and the public, resized room photos. Private files are never served from here.
+	@files path /static/* /media/*
+	handle @files {
+		root * /srv
+		header Cache-Control "public, max-age=604800"
+		file_server
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+}
