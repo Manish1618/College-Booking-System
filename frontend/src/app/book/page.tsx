@@ -11,16 +11,7 @@ import { z } from "zod";
 import { Button, Card, Field, inputClass, Loading, Notice, PageTitle } from "@/components/ui";
 import { api, ApiError, fmtDate, inr } from "@/lib/api";
 import { useMe } from "@/lib/hooks";
-import type { Availability, Booking, RoomType } from "@/lib/types";
-
-export const ID_TYPES = [
-  ["AADHAAR", "Aadhaar"],
-  ["PASSPORT", "Passport"],
-  ["DRIVING_LICENCE", "Driving licence"],
-  ["VOTER_ID", "Voter ID"],
-  ["PAN", "PAN card"],
-  ["OTHER", "Other government ID"],
-] as const;
+import { ID_TYPES, type Availability, type Booking, type RoomType } from "@/lib/types";
 
 const MAX_FILE = 5 * 1024 * 1024;
 const FILE_TYPES = ["application/pdf", "image/jpeg", "image/png"];

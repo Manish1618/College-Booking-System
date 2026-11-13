@@ -148,3 +148,12 @@ export interface AuditEntry {
   ip: string | null;
   created_at: string;
 }
+
+export const ID_TYPES = [
+  ["AADHAAR", "Aadhaar"],
+  ["PASSPORT", "Passport"],
+  ["DRIVING_LICENCE", "Driving licence"],
+  ["VOTER_ID", "Voter ID"],
+  ["PAN", "PAN card"],
+  ["OTHER", "Other government ID"],
+] as const;

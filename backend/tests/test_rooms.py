@@ -140,3 +140,44 @@ def test_room_type_price_follows_effective_date(room_type):
     assert rt.price_on(date(2026, 5, 31)) == 1000
     assert rt.price_on(date(2026, 6, 1)) == 1200
     assert rt.price_on(date(2019, 1, 1)) is None
+
+
+def test_slow_resize_of_a_replaced_photo_does_not_put_the_old_picture_back(manager, room_type, monkeypatch):
+    """A photo is replaced while the resize of its previous image is still running."""
+    from apps.rooms import tasks
+
+    desk = client_for(manager)
+    created = desk.post(
+        f"/api/room-types/{room_type.pk}/photos", {"file": upload("old.png", png_bytes((800, 600)))}, format="multipart"
+    )
+    photo = RoomPhoto.objects.get(pk=created.data["id"])
+    old_stem = photo.file_ref.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+    real_transpose = tasks.ImageOps.exif_transpose
+    replaced = []
+
+    def transpose_then_get_overtaken(image):
+        if not replaced:  # only the old task is overtaken; the replacement's own task runs normally
+            replaced.append(True)
+            resp = desk.patch(
+                f"/api/photos/{photo.pk}", {"file": upload("new.png", png_bytes((1000, 500)))}, format="multipart"
+            )
+            assert resp.status_code == 200
+        return real_transpose(image)
+
+    monkeypatch.setattr(tasks.ImageOps, "exif_transpose", transpose_then_get_overtaken)
+    tasks.process_room_photo(str(photo.pk))  # the old image's task, finishing after the replacement's
+
+    photo.refresh_from_db()
+    new_stem = photo.file_ref.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+    assert new_stem != old_stem
+    assert all(new_stem in path and default_storage.exists(path) for path in photo.variants.values())
+    assert set(photo.variants) == {"480", "960", "1600"}
+    # Nothing made from the old image is left behind in the public folder.
+    assert not [name for name in default_storage.listdir("room-photos")[1] if old_stem in name]
+
+    # A task whose original has already gone does nothing.
+    gone = photo.file_ref
+    storages["private"].delete(gone)
+    tasks.process_room_photo(str(photo.pk))
+    photo.refresh_from_db()
+    assert all(new_stem in path for path in photo.variants.values())

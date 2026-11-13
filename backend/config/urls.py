@@ -1,18 +1,11 @@
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
-from django.http import JsonResponse
 from django.urls import include, path
 
 from apps.accounts.urls import user_urlpatterns
 
-
-def healthz(request):
-    return JsonResponse({"status": "ok"})
-
-
 api = [
-    path("healthz", healthz),
     path("auth/", include("apps.accounts.urls")),
     path("", include(user_urlpatterns)),
     path("", include("apps.rooms.urls")),

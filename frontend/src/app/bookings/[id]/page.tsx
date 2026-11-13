@@ -8,7 +8,7 @@ import { useState } from "react";
 import { Button, Card, Field, inputClass, Loading, Notice, StatusBadge } from "@/components/ui";
 import { api, fmtDate, fmtDateTime, inr } from "@/lib/api";
 import { useRefresh } from "@/lib/hooks";
-import type { Booking, Room } from "@/lib/types";
+import { ID_TYPES, type Booking, type Room } from "@/lib/types";
 
 const DECISIONS = { APPROVED: "Approved", REJECTED: "Rejected", SENT_BACK: "Sent back" } as Record<string, string>;
 
@@ -60,7 +60,14 @@ export default function BookingPage() {
       {b.actions.decide && <DecisionPanel busy={busy} onDecide={(body) => act("decide", body)} />}
       {b.actions.allot && <AllotPanel booking={b} busy={busy} onAllot={(room) => act("allot", { room })} />}
       {b.actions.pay && <PayPanel booking={b} busy={busy} onPay={(gateway) => act("pay", { gateway })} />}
-      {b.actions.edit && <FixPanel booking={b} onError={setError} />}
+      {b.actions.edit && (
+        // The key remounts the panel after each save, so its fields start again from what the server stored.
+        <FixPanel
+          key={JSON.stringify([b.purpose, b.check_in, b.check_out, b.guests, b.student_link])}
+          booking={b}
+          onError={setError}
+        />
+      )}
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
@@ -288,12 +295,57 @@ function PayPanel({ booking, busy, onPay }: { booking: Booking; busy: boolean; o
   );
 }
 
-/** For drafts and sent-back requests: fix dates or purpose, add missing documents, then submit. */
+type GuestDraft = { id?: string; name: string; phone: string; address: string; id_type: string };
+type LinkDraft = { student_name: string; roll_number: string; programme: string; year: string; relationship: string };
+const emptyLink: LinkDraft = { student_name: "", roll_number: "", programme: "", year: "", relationship: "" };
+
+/** The first problem with the corrected details, in words for the requester, or null when they are complete. */
+function problemWith(purpose: string, guests: GuestDraft[], link: LinkDraft | null) {
+  if (purpose.trim().length < 5) return "Say briefly why the guests are visiting.";
+  if (!guests.length) return "Add at least one guest.";
+  for (const [index, guest] of guests.entries()) {
+    const who = `Guest ${index + 1}`;
+    if (guest.name.trim().length < 2) return `${who}: enter the guest's full name.`;
+    if (!/^\+?[0-9]{10,14}$/.test(guest.phone.trim())) return `${who}: enter a valid mobile number.`;
+    if (guest.address.trim().length < 5) return `${who}: enter the guest's address.`;
+  }
+  if (link) {
+    if (!link.student_name.trim() || !link.roll_number.trim() || !link.programme.trim() || !link.relationship.trim()) {
+      return "Fill in all of the student's details.";
+    }
+    if (!/^[1-8]$/.test(link.year.trim())) return "Enter the student's year of study (1 to 8).";
+  }
+  return null;
+}
+
+/** For drafts and sent-back requests: correct the stay, the guests or the student's details, add documents, then submit. */
 function FixPanel({ booking, onError }: { booking: Booking; onError: (message: string) => void }) {
   const refresh = useRefresh();
+  const personal = booking.category === "PERSONAL";
+  const savedGuests: GuestDraft[] = booking.guests.map((g) => ({
+    id: g.id,
+    name: g.name,
+    phone: g.phone ?? "",
+    address: g.address ?? "",
+    id_type: g.id_type ?? "AADHAAR",
+  }));
+  const savedLink: LinkDraft | null = !personal
+    ? null
+    : booking.student_link
+      ? {
+          student_name: booking.student_link.student_name,
+          roll_number: booking.student_link.roll_number,
+          programme: booking.student_link.programme,
+          year: String(booking.student_link.year),
+          relationship: booking.student_link.relationship,
+        }
+      : emptyLink;
+
   const [purpose, setPurpose] = useState(booking.purpose);
   const [checkIn, setCheckIn] = useState(booking.check_in);
   const [checkOut, setCheckOut] = useState(booking.check_out);
+  const [guests, setGuests] = useState(savedGuests);
+  const [link, setLink] = useState(savedLink);
   const [busy, setBusy] = useState(false);
 
   async function run(action: () => Promise<unknown>) {
@@ -321,7 +373,29 @@ function FixPanel({ booking, onError }: { booking: Booking; onError: (message: s
     };
   }
 
-  const changed = purpose !== booking.purpose || checkIn !== booking.check_in || checkOut !== booking.check_out;
+  function save() {
+    const problem = problemWith(purpose, guests, link);
+    if (problem) return onError(problem);
+    const body = {
+      purpose: purpose.trim(),
+      check_in: checkIn,
+      check_out: checkOut,
+      guests: guests.map((g) => ({ ...g, name: g.name.trim(), phone: g.phone.trim(), address: g.address.trim() })),
+      ...(link && { student_link: { ...link, year: Number(link.year) } }),
+    };
+    run(() => api(`/bookings/${booking.id}`, { method: "PATCH", body }));
+  }
+
+  const setGuest = (index: number, change: Partial<GuestDraft>) =>
+    setGuests((list) => list.map((g, i) => (i === index ? { ...g, ...change } : g)));
+  const setLinkField = (change: Partial<LinkDraft>) => setLink((current) => current && { ...current, ...change });
+
+  const changed =
+    purpose !== booking.purpose ||
+    checkIn !== booking.check_in ||
+    checkOut !== booking.check_out ||
+    JSON.stringify(guests) !== JSON.stringify(savedGuests) ||
+    JSON.stringify(link) !== JSON.stringify(savedLink);
   const hasLetter = booking.documents.some((d) => d.type === "RECOMMENDATION_LETTER");
 
   return (
@@ -344,19 +418,88 @@ function FixPanel({ booking, onError }: { booking: Booking; onError: (message: s
             <input type="file" accept=".pdf,.jpg,.jpeg,.png" disabled={busy} onChange={upload("RECOMMENDATION_LETTER")} className="block w-full text-sm" />
           </Field>
         )}
-        {booking.guests.map((guest) => (
-          <Field key={guest.id} label={`${guest.has_id_document ? "Replace ID" : "ID (missing)"} for ${guest.name}`}>
-            <input type="file" accept=".pdf,.jpg,.jpeg,.png" disabled={busy} onChange={upload("GUEST_ID", guest.id)} className="block w-full text-sm" />
-          </Field>
-        ))}
       </div>
-      <div className="flex flex-wrap gap-3">
+
+      {link && (
+        <fieldset className="grid gap-4 border-t border-slate-200 pt-4 sm:grid-cols-2">
+          <legend className="sr-only">Student&apos;s details</legend>
+          <h3 className="font-medium sm:col-span-2">Student&apos;s details</h3>
+          <Field label="Student's name">
+            <input value={link.student_name} onChange={(e) => setLinkField({ student_name: e.target.value })} className={inputClass} />
+          </Field>
+          <Field label="Roll number">
+            <input value={link.roll_number} onChange={(e) => setLinkField({ roll_number: e.target.value })} className={inputClass} />
+          </Field>
+          <Field label="Programme">
+            <input value={link.programme} onChange={(e) => setLinkField({ programme: e.target.value })} className={inputClass} />
+          </Field>
+          <Field label="Year of study">
+            <input inputMode="numeric" value={link.year} onChange={(e) => setLinkField({ year: e.target.value })} className={inputClass} />
+          </Field>
+          <Field label="Your relationship to the student">
+            <input value={link.relationship} onChange={(e) => setLinkField({ relationship: e.target.value })} className={inputClass} />
+          </Field>
+        </fieldset>
+      )}
+
+      {guests.map((guest, index) => {
+        const saved = booking.guests.find((g) => g.id === guest.id);
+        return (
+          <fieldset key={guest.id ?? `new-${index}`} className="grid gap-4 border-t border-slate-200 pt-4 sm:grid-cols-2">
+            <legend className="sr-only">Guest {index + 1}</legend>
+            <div className="flex items-center justify-between sm:col-span-2">
+              <h3 className="font-medium">Guest {index + 1}</h3>
+              {guests.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setGuests((list) => list.filter((_, i) => i !== index))}
+                  className="py-2 text-sm text-red-700 hover:underline"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+            <Field label="Full name">
+              <input autoComplete="off" value={guest.name} onChange={(e) => setGuest(index, { name: e.target.value })} className={inputClass} />
+            </Field>
+            <Field label="Mobile number">
+              <input inputMode="tel" value={guest.phone} onChange={(e) => setGuest(index, { phone: e.target.value })} className={inputClass} />
+            </Field>
+            <div className="sm:col-span-2">
+              <Field label="Address">
+                <input value={guest.address} onChange={(e) => setGuest(index, { address: e.target.value })} className={inputClass} />
+              </Field>
+            </div>
+            <Field label="Government ID type">
+              <select value={guest.id_type} onChange={(e) => setGuest(index, { id_type: e.target.value })} className={inputClass}>
+                {ID_TYPES.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            {saved ? (
+              <Field label={saved.has_id_document ? "Replace the ID copy" : "ID copy (missing)"}>
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png" disabled={busy} onChange={upload("GUEST_ID", saved.id)} className="block w-full text-sm" />
+              </Field>
+            ) : (
+              <p className="self-end text-sm text-slate-600">Save the changes, then upload this guest&apos;s ID copy.</p>
+            )}
+          </fieldset>
+        );
+      })}
+
+      <div className="flex flex-wrap gap-3 border-t border-slate-200 pt-4">
+        <Button
+          variant="secondary"
+          disabled={busy}
+          onClick={() => setGuests((list) => [...list, { name: "", phone: "", address: "", id_type: "AADHAAR" }])}
+        >
+          Add a guest
+        </Button>
         {changed && (
-          <Button
-            variant="secondary"
-            disabled={busy}
-            onClick={() => run(() => api(`/bookings/${booking.id}`, { method: "PATCH", body: { purpose, check_in: checkIn, check_out: checkOut } }))}
-          >
+          <Button variant="secondary" disabled={busy} onClick={save}>
             Save changes
           </Button>
         )}

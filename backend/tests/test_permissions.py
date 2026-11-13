@@ -246,3 +246,40 @@ def test_django_admin_sign_in_returns_to_the_requested_page(admin, requester):
     assert no_totp.get(login, {"next": "/django-admin/"})["Location"] == "/login?next=/django-admin/"
     # An account with no admin access is sent home instead of bouncing between the two sign-in pages.
     assert client_for(requester).get(login, {"next": "/django-admin/"})["Location"] == "/"
+
+
+def test_health_probe_answers_when_only_the_public_domain_is_allowed(settings):
+    """The container probe calls localhost; production allows only the real domain."""
+    settings.ALLOWED_HOSTS = ["guesthouse.example.edu"]
+    settings.SECURE_SSL_REDIRECT = True
+    client = APIClient()
+    resp = client.get("/api/healthz", HTTP_HOST="localhost:8000")
+    assert resp.status_code == 200 and resp.json() == {"status": "ok"}
+    # Everything else is still refused for an unknown host.
+    assert client.get("/api/auth/csrf", HTTP_HOST="localhost:8000").status_code == 400
+
+
+@pytest.mark.django_db
+def test_admin_set_phone_is_stored_the_way_sign_in_looks_it_up(admin, requester):
+    from apps.accounts import otp
+
+    client = client_for(admin)
+    resp = client.post("/api/users", {"name": "Desk", "phone": "98765 43210", "role": "MANAGER"}, format="json")
+    assert resp.status_code == 201 and resp.data["phone"] == "+919876543210"
+    # Signing in with the same number, however it is typed, reaches that staff account.
+    kind, number = otp.normalise_identifier("9876543210")
+    user, created = otp.get_or_create_user(kind, number)
+    assert (str(user.pk), created, user.role) == (resp.data["id"], False, Role.MANAGER)
+
+    # The same number or address in another form is a duplicate, not a second account or a server error.
+    again = client.post("/api/users", {"name": "Copy", "phone": "+91 98765 43210"}, format="json")
+    assert again.status_code == 400 and "phone" in again.data
+    assert client.patch(f"/api/users/{requester.pk}", {"phone": "9876543210"}, format="json").status_code == 400
+    taken = client.post("/api/users", {"name": "Copy", "email": requester.email.upper()}, format="json")
+    assert taken.status_code == 400 and "email" in taken.data
+    assert client.post("/api/users", {"name": "Bad", "phone": "12345"}, format="json").status_code == 400
+
+    # Saving a user's own number again is fine, and updates are normalised too.
+    assert client.patch(f"/api/users/{user.pk}", {"phone": "98765 43210"}, format="json").status_code == 200
+    resp = client.patch(f"/api/users/{requester.pk}", {"phone": "9123456780"}, format="json")
+    assert resp.status_code == 200 and resp.data["phone"] == "+919123456780"
