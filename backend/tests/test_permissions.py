@@ -223,3 +223,26 @@ def test_admin_manages_users(clients, requester):
     assert AuditLog.objects.filter(action="user.updated", entity_id=str(requester.pk)).exists()
     me = admin.get("/api/auth/me").data["id"]
     assert admin.patch(f"/api/users/{me}", {"role": "EXTERNAL"}, format="json").status_code == 400
+
+
+@pytest.mark.django_db
+def test_django_admin_sign_in_returns_to_the_requested_page(admin, requester):
+    """The admin's own login URL only redirects, so it must never be the place sign-in returns to."""
+    login = "/django-admin/login/"
+    anon = APIClient()
+    resp = anon.get("/django-admin/")
+    assert resp.status_code == 302 and resp["Location"] == f"{login}?next=/django-admin/"
+    assert anon.get(resp["Location"])["Location"] == "/login?next=/django-admin/"
+    assert anon.get(login, {"next": "/django-admin/audit/"})["Location"] == "/login?next=/django-admin/audit/"
+    for bad in ("https://evil.example/", "//evil.example/", f"{login}?next=/django-admin/", ""):
+        assert anon.get(login, {"next": bad})["Location"] == "/login?next=/django-admin/"
+
+    # Signed in with TOTP: straight through, no second trip to the portal.
+    signed_in = client_for(admin)
+    assert signed_in.get(login, {"next": "/django-admin/"})["Location"] == "/django-admin/"
+    assert signed_in.get("/django-admin/").status_code == 200
+    # Staff without TOTP in this session go to the portal, which asks for the authenticator code.
+    no_totp = client_for(admin, mfa=False)
+    assert no_totp.get(login, {"next": "/django-admin/"})["Location"] == "/login?next=/django-admin/"
+    # An account with no admin access is sent home instead of bouncing between the two sign-in pages.
+    assert client_for(requester).get(login, {"next": "/django-admin/"})["Location"] == "/"

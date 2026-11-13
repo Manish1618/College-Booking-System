@@ -1,15 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
 import { api } from "@/lib/api";
-import { isAdmin, isApprover, isManager, useMe, useRefresh } from "@/lib/hooks";
+import { isAdmin, isApprover, isManager, useMe } from "@/lib/hooks";
 
 export function Header() {
   const { data: me, isLoading } = useMe();
-  const refresh = useRefresh();
-  const router = useRouter();
 
   const links = [
     { href: "/", label: "Book a room", show: true },
@@ -22,8 +19,10 @@ export function Header() {
 
   async function signOut() {
     await api("/auth/logout", { method: "POST" });
-    await refresh();
-    router.push("/");
+    // A full page load rather than a client-side move: it drops everything this tab holds in memory
+    // for the person who just signed out (fetched bookings, half-filled forms, the sign-in form).
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- the reload is the point
+    window.location.assign("/");
   }
 
   return (

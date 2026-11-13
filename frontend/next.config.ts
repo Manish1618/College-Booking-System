@@ -18,10 +18,15 @@ const nextConfig: NextConfig = {
     },
   },
   async rewrites() {
-    return ["api", "media", "django-admin", "static"].map((prefix) => ({
-      source: `/${prefix}/:path*`,
-      destination: `${apiOrigin}/${prefix}/:path*`,
-    }));
+    // The catch-all passes the rest of the path through exactly as it came. ":path*" would drop a trailing
+    // slash, and Django answers a missing slash with a redirect back to it, which loops for the admin.
+    return [
+      { source: "/django-admin", destination: `${apiOrigin}/django-admin/` },
+      ...["api", "media", "django-admin", "static"].map((prefix) => ({
+        source: `/${prefix}/:rest(.*)`,
+        destination: `${apiOrigin}/${prefix}/:rest`,
+      })),
+    ];
   },
   async headers() {
     return [

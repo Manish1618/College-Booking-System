@@ -116,7 +116,9 @@ export default function LoginPage() {
               e.preventDefault();
               run(async () => {
                 await api("/auth/otp/verify", { body: { identifier, code, name } });
-                await refresh();
+                // Reload instead of refetching: an earlier session may have run out on this browser, and
+                // nothing it left in memory should be shown to the person signing in now.
+                window.location.reload();
               });
             }}
           >

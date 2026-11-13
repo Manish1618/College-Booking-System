@@ -133,7 +133,10 @@ class BookingWriteSerializer(serializers.ModelSerializer):
             )
         if get("category") == Category.PERSONAL and not self.instance and not attrs.get("student_link"):
             raise serializers.ValidationError({"student_link": ["Enter the student's details for a personal stay."]})
-        attrs["price_per_night"], attrs["amount"] = services.quote(get("room_type"), get("check_in"), get("check_out"))
+        # The price is a snapshot: it is quoted when the booking is made, and again only if the stay itself changes.
+        stay = ("room_type", "check_in", "check_out")
+        if not self.instance or any(n in attrs and attrs[n] != getattr(self.instance, n) for n in stay):
+            attrs["price_per_night"], attrs["amount"] = services.quote(*(get(n) for n in stay))
         return attrs
 
     @transaction.atomic

@@ -546,3 +546,27 @@ def test_edit_racing_a_status_change_cannot_write_stale_state(requester, room_ty
         assert racing.result(timeout=10) == 400
     booking.refresh_from_db()
     assert (booking.status, booking.purpose) == (Status.PENDING, "Visit")
+
+
+@pytest.mark.django_db
+def test_editing_other_fields_keeps_the_price_snapshot(requester, room_type, stay):
+    """A tariff change after the request was made must not reprice it unless the stay itself changes."""
+    booking = make_booking(
+        requester, room_type, stay, Status.SENT_BACK, hold_expires_at=timezone.now() + timedelta(hours=1)
+    )
+    Tariff.objects.create(room_type=room_type, price_per_night=1500, valid_from=timezone.localdate())
+    client = client_for(requester)
+    base = f"/api/bookings/{booking.pk}"
+
+    # The form sends the unchanged stay back together with the correction.
+    same_stay = {"room_type": str(room_type.pk), "check_in": stay[0].isoformat(), "check_out": stay[1].isoformat()}
+    assert client.patch(base, {"purpose": "Corrected purpose", **same_stay}, format="json").status_code == 200
+    booking.refresh_from_db()
+    assert booking.purpose == "Corrected purpose"
+    assert (booking.price_per_night, booking.amount) == (Decimal("1000"), Decimal("2000"))
+
+    # Changing the stay is a new request for a price, at the tariff now in force.
+    longer = (stay[1] + timedelta(days=1)).isoformat()
+    assert client.patch(base, {"check_out": longer}, format="json").status_code == 200
+    booking.refresh_from_db()
+    assert (booking.price_per_night, booking.amount) == (Decimal("1500"), Decimal("4500"))
