@@ -24,12 +24,12 @@ export default function AdminPage() {
   const [search, setSearch] = useState("");
 
   const users = useQuery({
-    queryKey: ["users", search],
+    queryKey: ["users", "search", search],
     queryFn: () => api<Page<AdminUser>>(`/users?q=${encodeURIComponent(search)}`),
     enabled: allowed,
   });
   const approvers = useQuery({
-    queryKey: ["users", "approvers"],
+    queryKey: ["users", "approvers"], // one fixed segment less than a search key, so the two cannot collide
     queryFn: () => apiAll<AdminUser>("/users?role=APPROVER"),
     enabled: allowed,
   });
