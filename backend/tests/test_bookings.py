@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, time, timedelta
 from decimal import Decimal
+from time import sleep
 
 import pytest
 from django.core import mail
@@ -466,3 +467,82 @@ def test_concurrent_allotment_of_the_same_room(requester, manager, room_type, st
         results = sorted(pool.map(allot, bookings))
     assert results == ["Conflict", "ok"]
     assert Booking.objects.filter(status=Status.ALLOTTED, room=room).count() == 1
+
+
+# --- Review fixes -------------------------------------------------------------
+def test_request_cannot_be_approved_after_its_hold_lapsed(requester, other_requester, approver, room_type, stay):
+    """Between the deadline and the expiry job, the dates are free again, so approval must not revive the hold."""
+    Room.objects.filter(number="102").update(is_active=False)
+    late = make_booking(
+        requester, room_type, stay, Status.PENDING, hold_expires_at=timezone.now() - timedelta(minutes=1)
+    )
+    assert services.available_count(room_type, *stay) == 1
+    taker = make_booking(
+        other_requester, room_type, stay, Status.PENDING, hold_expires_at=timezone.now() + timedelta(hours=1)
+    )
+
+    hod = client_for(approver)
+    resp = hod.post(f"/api/bookings/{late.pk}/decide", {"decision": "APPROVED"}, format="json")
+    assert resp.status_code == 409
+    late.refresh_from_db()
+    assert late.status == Status.PENDING and not late.approvals.exists()
+    assert hod.post(f"/api/bookings/{taker.pk}/decide", {"decision": "APPROVED"}, format="json").status_code == 200
+    assert services.expire_stale() == 1
+
+
+def test_sent_back_request_cannot_move_its_hold_onto_full_dates(requester, other_requester, room_type, stay):
+    Room.objects.filter(number="102").update(is_active=False)
+    full = (stay[0] + timedelta(days=5), stay[1] + timedelta(days=5))
+    make_booking(other_requester, room_type, full, Status.CONFIRMED)
+    booking = make_booking(
+        requester, room_type, stay, Status.SENT_BACK, hold_expires_at=timezone.now() + timedelta(hours=1)
+    )
+    client = client_for(requester)
+    base = f"/api/bookings/{booking.pk}"
+
+    resp = client.patch(base, {"check_in": full[0].isoformat(), "check_out": full[1].isoformat()}, format="json")
+    assert resp.status_code == 409
+    booking.refresh_from_db()
+    assert (booking.check_in, booking.check_out) == stay  # the original hold is untouched
+    assert services.available_count(room_type, *stay) == 0
+
+    # Free dates are fine, and so is an edit that does not move the stay.
+    free = (stay[0] + timedelta(days=10), stay[1] + timedelta(days=10))
+    assert client.patch(base, {"purpose": "Updated purpose"}, format="json").status_code == 200
+    assert (
+        client.patch(
+            base, {"check_in": free[0].isoformat(), "check_out": free[1].isoformat()}, format="json"
+        ).status_code
+        == 200
+    )
+    assert services.available_count(room_type, *stay) == 1
+    # A draft holds nothing, so it may be pointed at full dates; submission is where it is refused.
+    draft = make_booking(requester, room_type, stay)
+    resp = client.patch(
+        f"/api/bookings/{draft.pk}", {"check_in": full[0].isoformat(), "check_out": full[1].isoformat()}, format="json"
+    )
+    assert resp.status_code == 200
+
+
+@pytest.mark.django_db(transaction=True)
+def test_edit_racing_a_status_change_cannot_write_stale_state(requester, room_type, stay):
+    """A PATCH that read the booking as a draft must not put it back to DRAFT after it was submitted."""
+    booking = make_booking(requester, room_type, stay)
+    client = client_for(requester)
+
+    def patch():
+        try:
+            return client.patch(f"/api/bookings/{booking.pk}", {"purpose": "Late edit"}, format="json").status_code
+        finally:
+            connection.close()
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        with transaction.atomic():
+            row = services.locked(booking.pk)
+            racing = pool.submit(patch)  # passes its first check, then waits on the row lock
+            sleep(1)
+            row.status = Status.PENDING
+            row.save(update_fields=["status"])
+        assert racing.result(timeout=10) == 400
+    booking.refresh_from_db()
+    assert (booking.status, booking.purpose) == (Status.PENDING, "Visit")

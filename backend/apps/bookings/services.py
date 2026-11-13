@@ -66,6 +66,18 @@ def quote(room_type, check_in, check_out):
     return price, price * (check_out - check_in).days
 
 
+def hold_capacity(room_type_id, check_in, check_out, *, exclude):
+    """Confirms a room of the type is free for the stay, holding a lock on the room type.
+
+    The lock lasts until the surrounding transaction ends, so two requests cannot both take the last room.
+    """
+    room_type = RoomType.objects.select_for_update().get(pk=room_type_id)
+    if not room_type.is_active:
+        raise Conflict("This room type is no longer offered.")
+    if available_count(room_type, check_in, check_out, exclude=exclude) < 1:
+        raise Conflict("No rooms of this type are free for those dates any more.")
+
+
 def locked(booking_id):
     return Booking.objects.select_for_update().get(pk=booking_id)
 
@@ -92,12 +104,7 @@ def submit(booking_id, actor):
         errors.append("Enter the student's details.")
     if errors:
         raise ValidationError({"detail": errors})
-    # Lock the room type so two requests cannot both take the last room.
-    room_type = RoomType.objects.select_for_update().get(pk=booking.room_type_id)
-    if not room_type.is_active:
-        raise Conflict("This room type is no longer offered.")
-    if available_count(room_type, booking.check_in, booking.check_out, exclude=booking) < 1:
-        raise Conflict("No rooms of this type are free for those dates any more.")
+    hold_capacity(booking.room_type_id, booking.check_in, booking.check_out, exclude=booking)
     now = timezone.now()
     return transition(
         booking,
@@ -129,6 +136,9 @@ def decide(booking_id, approver, decision, comment=""):
         raise ValidationError({"comment": ["Add a comment so the guest knows why."]})
     if booking.status != Status.PENDING:
         raise Conflict("This request is not waiting for a decision.")
+    if booking.hold_expires_at and booking.hold_expires_at < timezone.now():
+        # A lapsed hold no longer reserves the dates, so someone else may hold them by now.
+        raise Conflict("The hold on this request has run out, so it can no longer be decided.")
     Approval.objects.create(booking=booking, approver=approver, decision=decision, comment=comment)
     changes = {}
     if decision == Approval.Decision.APPROVED:

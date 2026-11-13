@@ -100,8 +100,15 @@ class BookingViewSet(
         booking = visible_bookings(self.request).get(pk=booking.pk)
         return Response(BookingSerializer(booking, context=self.get_serializer_context()).data, status=status_code)
 
-    def _own_editable(self):
+    def _own_editable(self, *, lock=False):
+        """The caller's own draft or sent-back booking.
+
+        With lock=True (inside a transaction) the row is locked first, so a submission, cancellation or
+        expiry that lands at the same moment cannot be overwritten with stale values.
+        """
         booking = self.get_object()
+        if lock:
+            booking = Booking.objects.select_for_update().get(pk=booking.pk)
         if booking.requester_id != self.request.user.pk:
             raise PermissionDenied()
         if booking.status not in (Status.DRAFT, Status.SENT_BACK):
@@ -117,22 +124,30 @@ class BookingViewSet(
         return self._read(booking, status.HTTP_201_CREATED)
 
     def partial_update(self, request, *args, **kwargs):
-        booking = self._own_editable()
-        serializer = BookingWriteSerializer(
-            booking, data=request.data, partial=True, context=self.get_serializer_context()
-        )
-        serializer.is_valid(raise_exception=True)
         with transaction.atomic():
+            booking = self._own_editable(lock=True)
+            serializer = BookingWriteSerializer(
+                booking, data=request.data, partial=True, context=self.get_serializer_context()
+            )
+            serializer.is_valid(raise_exception=True)
+            stay = {
+                f: serializer.validated_data.get(f, getattr(booking, f)) for f in ("room_type", "check_in", "check_out")
+            }
+            moved = any(value != getattr(booking, field) for field, value in stay.items())
+            if booking.status == Status.SENT_BACK and moved:
+                # A sent-back request still holds a room, so new dates must be free before the hold moves.
+                services.hold_capacity(stay["room_type"].pk, stay["check_in"], stay["check_out"], exclude=booking)
             serializer.save()
             audit.log("booking.edited", booking, actor=request.user, after=request.data)
         return self._read(booking)
 
     @action(detail=True, methods=["post"], parser_classes=[MultiPartParser, FormParser])
     def documents(self, request, pk=None):
-        booking = self._own_editable()
-        document = documents.attach(
-            booking, request.user, request.data.get("type"), request.FILES.get("file"), request.data.get("guest")
-        )
+        with transaction.atomic():
+            booking = self._own_editable(lock=True)
+            document = documents.attach(
+                booking, request.user, request.data.get("type"), request.FILES.get("file"), request.data.get("guest")
+            )
         return Response(DocumentSerializer(document).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["post"])

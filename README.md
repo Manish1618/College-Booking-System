@@ -122,7 +122,7 @@ npm ci && npm run dev                      # http://localhost:3000, proxies /api
 
 ```bash
 cd backend
-pytest --cov=apps                 # 102 tests; needs PostgreSQL
+pytest --cov=apps                 # 105 tests; needs PostgreSQL
 ruff check . && ruff format --check .
 bandit -q -r apps config -ll
 pip-audit -r requirements.txt
