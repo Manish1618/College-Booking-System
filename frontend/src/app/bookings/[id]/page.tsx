@@ -62,8 +62,9 @@ export default function BookingPage() {
       {b.actions.pay && <PayPanel booking={b} busy={busy} onPay={(gateway) => act("pay", { gateway })} />}
       {b.actions.edit && (
         // The key remounts the panel after each save, so its fields start again from what the server stored.
+        // It covers only what the panel edits: uploading a document must not throw away unsaved corrections.
         <FixPanel
-          key={JSON.stringify([b.purpose, b.check_in, b.check_out, b.guests, b.student_link])}
+          key={JSON.stringify([b.purpose, b.check_in, b.check_out, savedDetails(b)])}
           booking={b}
           onError={setError}
         />
@@ -318,28 +319,35 @@ function problemWith(purpose: string, guests: GuestDraft[], link: LinkDraft | nu
   return null;
 }
 
-/** For drafts and sent-back requests: correct the stay, the guests or the student's details, add documents, then submit. */
-function FixPanel({ booking, onError }: { booking: Booking; onError: (message: string) => void }) {
-  const refresh = useRefresh();
-  const personal = booking.category === "PERSONAL";
-  const savedGuests: GuestDraft[] = booking.guests.map((g) => ({
+/** The guests and student details as the server holds them, in the shape the correction panel edits. */
+function savedDetails(booking: Booking): { guests: GuestDraft[]; link: LinkDraft | null } {
+  const guests = booking.guests.map((g) => ({
     id: g.id,
     name: g.name,
     phone: g.phone ?? "",
     address: g.address ?? "",
     id_type: g.id_type ?? "AADHAAR",
   }));
-  const savedLink: LinkDraft | null = !personal
-    ? null
-    : booking.student_link
+  if (booking.category !== "PERSONAL") return { guests, link: null };
+  const link = booking.student_link;
+  return {
+    guests,
+    link: link
       ? {
-          student_name: booking.student_link.student_name,
-          roll_number: booking.student_link.roll_number,
-          programme: booking.student_link.programme,
-          year: String(booking.student_link.year),
-          relationship: booking.student_link.relationship,
+          student_name: link.student_name,
+          roll_number: link.roll_number,
+          programme: link.programme,
+          year: String(link.year),
+          relationship: link.relationship,
         }
-      : emptyLink;
+      : emptyLink,
+  };
+}
+
+/** For drafts and sent-back requests: correct the stay, the guests or the student's details, add documents, then submit. */
+function FixPanel({ booking, onError }: { booking: Booking; onError: (message: string) => void }) {
+  const refresh = useRefresh();
+  const { guests: savedGuests, link: savedLink } = savedDetails(booking);
 
   const [purpose, setPurpose] = useState(booking.purpose);
   const [checkIn, setCheckIn] = useState(booking.check_in);
