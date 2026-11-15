@@ -1,6 +1,6 @@
 """Booking rules. Views stay thin; everything that changes a booking lives here, inside a transaction."""
 
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import datetime, time, timedelta
 
 from django.conf import settings
@@ -10,11 +10,11 @@ from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from apps.audit import services as audit
-from apps.rooms.models import Room, RoomType
+from apps.rooms.models import Room, RoomBlock, RoomType
 
 from . import routing
 from .exceptions import Conflict
-from .models import Approval, Booking, Category, Document, RegisterEntry, Status
+from .models import Approval, Booking, Category, DateChange, Document, RegisterEntry, Status
 from .state import HOLDING, transition
 
 
@@ -27,20 +27,42 @@ def _live_holds(now=None):
     )
 
 
-def available_count(room_type, check_in, check_out, *, exclude=None):
-    """Free rooms of a type across a stay: total active rooms minus the busiest night's bookings."""
+def _nights(start, end, check_in, check_out):
+    """The nights of [start, end) that fall inside the stay [check_in, check_out)."""
+    night, last = max(start, check_in), min(end, check_out)
+    while night < last:
+        yield night
+        night += timedelta(days=1)
+
+
+def available_count(room_type, check_in, check_out, *, exclude=None, without_block=None):
+    """Free rooms of a type across a stay: on its busiest night, the rooms in service minus those taken.
+
+    A room is taken by a live booking, and also by the new dates of a change that is still open, so the
+    dates a guest has asked to move to cannot be sold to someone else while the change is decided.
+    """
+    now = timezone.now()
     total = room_type.rooms.filter(is_active=True).count()
-    overlapping = Booking.objects.filter(
-        _live_holds(), room_type=room_type, check_in__lt=check_out, check_out__gt=check_in
+    span = {"check_in__lt": check_out, "check_out__gt": check_in}
+    stays = Booking.objects.filter(_live_holds(now), room_type=room_type, **span)
+    moves = DateChange.objects.filter(
+        status__in=DateChange.OPEN, expires_at__gte=now, booking__room_type=room_type, **span
     )
     if exclude is not None:
-        overlapping = overlapping.exclude(pk=exclude.pk)
-    per_night = Counter()
-    for start, end in overlapping.values_list("check_in", "check_out"):
-        night = max(start, check_in)
-        while night < min(end, check_out):
-            per_night[night] += 1
-            night += timedelta(days=1)
+        stays, moves = stays.exclude(pk=exclude.pk), moves.exclude(booking=exclude)
+    held = defaultdict(set)  # booking -> nights it holds; its current and its new dates count once
+    for pk, start, end in [*stays.values_list("pk", "check_in", "check_out")] + [
+        *moves.values_list("booking_id", "check_in", "check_out")
+    ]:
+        held[pk].update(_nights(start, end, check_in, check_out))
+    per_night = Counter(night for nights in held.values() for night in nights)
+    blocks = RoomBlock.objects.filter(
+        room__room_type=room_type, room__is_active=True, starts_on__lt=check_out, ends_on__gt=check_in
+    )
+    if without_block is not None:
+        blocks = blocks.exclude(pk=without_block.pk)  # a block being changed does not count against itself
+    for start, end in blocks.values_list("starts_on", "ends_on"):
+        per_night.update(_nights(start, end, check_in, check_out))  # a room out of service is not for sale
     return max(total - max(per_night.values(), default=0), 0)
 
 
@@ -124,12 +146,15 @@ def cancel(booking_id, actor, *, by_staff=False, full_refund=False, reason=""):
     """
     from apps.payments import services as payments  # payments builds on bookings, so it is imported late
 
+    from . import changes
+
     booking = locked(booking_id)
     if booking.requester_id != actor.pk and not by_staff:
         raise PermissionDenied()
     booking = transition(
         booking, Status.CANCELLED, actor=actor, comment=(reason or "").strip(), room=None, hold_expires_at=None
     )
+    changes.close_open(booking, DateChange.State.WITHDRAWN, "The booking was cancelled.")
     payments.on_cancelled(booking, actor, full=by_staff and full_refund)
     return booking
 
@@ -174,7 +199,12 @@ def free_rooms(booking):
         check_in__lt=booking.check_out,
         check_out__gt=booking.check_in,
     ).exclude(pk=booking.pk)
-    return Room.objects.filter(room_type=booking.room_type, is_active=True).exclude(pk__in=taken.values("room"))
+    blocked = RoomBlock.objects.filter(starts_on__lt=booking.check_out, ends_on__gt=booking.check_in)
+    return (
+        Room.objects.filter(room_type=booking.room_type, is_active=True)
+        .exclude(pk__in=taken.values("room"))
+        .exclude(pk__in=blocked.values("room"))
+    )
 
 
 @transaction.atomic
@@ -188,6 +218,8 @@ def allot(booking_id, manager, room_id):
         with transaction.atomic():
             return transition(booking, Status.ALLOTTED, actor=manager, room=room)
     except IntegrityError as exc:
+        if "room_not_blocked" in str(exc):
+            raise Conflict(f"Room {room.number} is out of service on those dates.") from exc
         if "no_overlap" in str(exc):
             raise Conflict(f"Room {room.number} is already allotted for those dates.") from exc
         raise
@@ -224,7 +256,10 @@ def check_in(booking_id, manager, guest_ids):
     if RegisterEntry.objects.filter(booking=booking, guest__in=guests).exists():
         raise Conflict("A guest you ticked is already checked in.")
     if first_arrival:
+        from . import changes
+
         booking = transition(booking, Status.CHECKED_IN, actor=manager)
+        changes.close_open(booking, DateChange.State.EXPIRED, "The stay began before the change was settled.")
 
     now = timezone.now()
     with connection.cursor() as cursor:
@@ -288,12 +323,17 @@ def mark_no_shows(now=None):
     now = timezone.localtime(now or timezone.now())
     count = 0
     candidates = Booking.objects.filter(status__in=[Status.CONFIRMED, Status.ALLOTTED], check_in__lt=now.date())
+    # A guest who has asked to move the stay is not a no-show while that request is still open. If it is
+    # refused or lapses, the next run of this job judges the booking on its original dates.
+    candidates = candidates.exclude(date_changes__status__in=DateChange.OPEN)
     for pk, check_in in list(candidates.values_list("pk", "check_in")):
         deadline = timezone.make_aware(datetime.combine(check_in + timedelta(days=1), time(settings.NO_SHOW_HOUR)))
         if now < deadline:
             continue
         with transaction.atomic():
             booking = locked(pk)
+            if booking.check_in != check_in or booking.date_changes.filter(status__in=DateChange.OPEN).exists():
+                continue  # the dates moved, or a move was asked for, since the query above
             if booking.status in (Status.CONFIRMED, Status.ALLOTTED):
                 transition(booking, Status.NO_SHOW, room=None)
                 payments.on_no_show(booking)

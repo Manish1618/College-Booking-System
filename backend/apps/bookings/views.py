@@ -18,8 +18,8 @@ from apps.audit import services as audit
 from apps.rooms.models import RoomType
 from apps.rooms.serializers import RoomSerializer
 
-from . import documents, routing, services
-from .models import ApprovalRule, Booking, Document, Status
+from . import changes, documents, routing, services
+from .models import ApprovalRule, Booking, DateChange, Document, Status
 from .serializers import (
     ApprovalRuleSerializer,
     BookingSerializer,
@@ -32,7 +32,7 @@ def visible_bookings(request):
     """The only bookings a user can ever load: their own, those routed to them, or all for the desk."""
     user = request.user
     qs = Booking.objects.select_related("requester", "room_type", "room", "student_link").prefetch_related(
-        "guests__register_entries", "documents__guest", "approvals__approver", "payments__refunds"
+        "guests__register_entries", "documents__guest", "approvals__approver", "payments__refunds", "date_changes"
     )
     if is_manager(request):
         return qs
@@ -76,7 +76,7 @@ class BookingViewSet(
     mixins.UpdateModelMixin,
     viewsets.GenericViewSet,
 ):
-    http_method_names = ["get", "post", "patch", "head", "options"]
+    http_method_names = ["get", "post", "patch", "delete", "head", "options"]  # delete: withdrawing a date change
     serializer_class = BookingSerializer
 
     def get_queryset(self):
@@ -90,7 +90,11 @@ class BookingViewSet(
         if scope == "mine":
             qs = qs.filter(requester=self.request.user)
         elif scope == "approvals":
-            qs = qs.filter(status=Status.PENDING).exclude(requester=self.request.user)
+            # New requests, and changes of dates on bookings that are already paid.
+            waiting = Q(status=Status.PENDING) | Q(
+                pk__in=DateChange.objects.filter(status=DateChange.State.PENDING).values("booking")
+            )
+            qs = qs.filter(waiting).exclude(requester=self.request.user)
             if self.request.user.role == Role.APPROVER:
                 qs = qs.filter(pk__in=routing.routed_to(self.request.user).values("pk"))
         elif scope == "desk":
@@ -177,6 +181,34 @@ class BookingViewSet(
             raise PermissionDenied("Two-step verification is required.")
         return self._read(
             services.decide(booking.pk, request.user, request.data.get("decision"), request.data.get("comment"))
+        )
+
+    def _stay(self, request):
+        try:
+            return (
+                date.fromisoformat(str(request.data.get("check_in", ""))),
+                date.fromisoformat(str(request.data.get("check_out", ""))),
+            )
+        except ValueError as exc:
+            raise ValidationError({"check_in": ["Give the new dates as YYYY-MM-DD."]}) from exc
+
+    @action(detail=True, methods=["post", "delete"], url_path="date-change", parser_classes=[JSONParser])
+    def date_change(self, request, pk=None):
+        """POST asks for new dates. DELETE withdraws a change that is still open."""
+        booking = self.get_object()
+        staff = is_manager(request)
+        if request.method == "DELETE":
+            return self._read(changes.withdraw(booking.pk, request.user, by_staff=staff))
+        check_in, check_out = self._stay(request)
+        return self._read(changes.request(booking.pk, request.user, check_in, check_out, by_staff=staff))
+
+    @action(detail=True, methods=["post"], url_path="date-change/decide", parser_classes=[JSONParser])
+    def decide_date_change(self, request, pk=None):
+        booking = self.get_object()
+        if request.user.role == Role.ADMIN and not is_manager(request):
+            raise PermissionDenied("Two-step verification is required.")
+        return self._read(
+            changes.decide(booking.pk, request.user, request.data.get("decision"), request.data.get("comment"))
         )
 
     @action(detail=True, methods=["get"], url_path="free-rooms", permission_classes=[IsManager])

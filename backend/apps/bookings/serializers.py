@@ -6,8 +6,8 @@ from apps.accounts.models import User
 from apps.accounts.permissions import is_manager
 from apps.rooms.models import RoomType
 
-from . import routing, services
-from .models import Approval, ApprovalRule, Booking, Category, Document, Guest, Status, StudentLink
+from . import changes, routing, services
+from .models import Approval, ApprovalRule, Booking, Category, DateChange, Document, Guest, Status, StudentLink
 from .state import TRANSITIONS
 
 
@@ -64,6 +64,24 @@ class ApprovalSerializer(serializers.ModelSerializer):
         fields = ["id", "decision", "comment", "approver_name", "decided_at"]
 
 
+class DateChangeSerializer(serializers.ModelSerializer):
+    status_label = serializers.CharField(source="get_status_display", read_only=True)
+    nights = serializers.IntegerField(read_only=True)
+    balance = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    refund = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    open = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DateChange
+        fields = [
+            "id", "status", "status_label", "open", "check_in", "check_out", "nights", "amount", "balance",
+            "refund", "old_check_in", "old_check_out", "old_amount", "expires_at", "comment", "requested_at",
+        ]  # fmt: skip
+
+    def get_open(self, change):
+        return change.status in DateChange.OPEN
+
+
 class PersonSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -83,6 +101,7 @@ class BookingSerializer(serializers.ModelSerializer):
     documents = DocumentSerializer(many=True, read_only=True)
     approvals = ApprovalSerializer(many=True, read_only=True)
     payment = serializers.SerializerMethodField()
+    date_change = serializers.SerializerMethodField()
     actions = serializers.SerializerMethodField()
 
     class Meta:
@@ -91,7 +110,7 @@ class BookingSerializer(serializers.ModelSerializer):
             "id", "reference", "status", "status_label", "category", "purpose", "check_in", "check_out", "nights",
             "room_type", "room_type_name", "room", "room_number", "price_per_night", "amount", "hold_expires_at",
             "submitted_at", "created_at", "requester", "guests", "student_link", "documents", "approvals", "payment",
-            "actions",
+            "date_change", "actions",
         ]  # fmt: skip
 
     def _viewer(self, booking):
@@ -117,6 +136,12 @@ class BookingSerializer(serializers.ModelSerializer):
         # Money is between the guest and the desk. Approvers see neither payments nor refunds.
         return payment_summary(booking, staff=manager) if owner or manager else None
 
+    def get_date_change(self, booking):
+        """The change of dates that is open, or else the last one, so its outcome can be shown."""
+        asked = list(booking.date_changes.all())
+        change = changes.open_change(booking) or (asked[-1] if asked else None)
+        return DateChangeSerializer(change).data if change else None
+
     @staticmethod
     def _can_check_in(booking):
         if booking.status == Status.CHECKED_IN:
@@ -129,14 +154,17 @@ class BookingSerializer(serializers.ModelSerializer):
         allowed = TRANSITIONS[booking.status]
         today = timezone.localdate()
         took_money = any(p.received for p in booking.payments.all())
+        change = changes.open_change(booking)
+        may_decide = routing.can_decide(request.user, booking) and (request.user.role == "APPROVER" or manager)
         return {
             "edit": owner and booking.status in (Status.DRAFT, Status.SENT_BACK),
-            "submit": owner and Status.PENDING in allowed,
+            "submit": owner and booking.status in (Status.DRAFT, Status.SENT_BACK),
             "cancel": (owner or manager) and Status.CANCELLED in allowed,
-            "decide": booking.status == Status.PENDING
-            and routing.can_decide(request.user, booking)
-            and (request.user.role == "APPROVER" or manager),
-            "pay": owner and booking.status == Status.APPROVED,
+            "decide": booking.status == Status.PENDING and may_decide,
+            "pay": owner and (booking.status == Status.APPROVED or changes.awaiting_payment(booking) is not None),
+            "change_dates": (owner or manager) and changes.why_not(booking, by_staff=manager) is None,
+            "decide_change": change is not None and change.status == DateChange.State.PENDING and may_decide,
+            "withdraw_change": (owner or manager) and change is not None,
             "allot": manager and Status.ALLOTTED in allowed,
             "check_in": manager and booking.check_in <= today < booking.check_out and self._can_check_in(booking),
             "check_out": manager and booking.status == Status.CHECKED_IN,

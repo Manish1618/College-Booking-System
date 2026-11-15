@@ -11,6 +11,7 @@ api = [
     path("", include("apps.rooms.urls")),
     path("", include("apps.bookings.urls")),
     path("", include("apps.payments.urls")),
+    path("", include("apps.reports.urls")),
     path("", include("apps.audit.urls")),
 ]
 if settings.OIDC_ENABLED:
