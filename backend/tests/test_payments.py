@@ -43,6 +43,8 @@ class FakeHTTP:
             if wanted == method and url.endswith(suffix):
                 if isinstance(data, Exception):
                     raise data
+                if callable(data):  # an answer that depends on the call, such as one page of a list
+                    data = data(self.calls[-1])
                 return SimpleNamespace(status_code=status, json=lambda data=data: data)
         raise AssertionError(f"Unexpected gateway call: {method} {url}")
 
@@ -746,6 +748,33 @@ def test_refund_with_no_answer_is_never_assumed_to_have_failed(requester, manage
     assert (refund.status, refund.gateway_refund_id, refund.failure_reason) == ("PROCESSED", "rfnd_7", "")
 
 
+def test_refund_lookup_reads_every_page_of_the_gateway_list(requester, manager, approved, razorpay):
+    razorpay_paid(requester, approved, razorpay)
+    desk = client_for(manager)
+    desk.post(f"/api/bookings/{approved.pk}/cancel", {"full_refund": True}, format="json")
+    refund = Refund.objects.get()
+    razorpay.on("POST", "/payments/pay_XYZ/refund", requests.Timeout())
+    desk.post(f"/api/refunds/{refund.pk}/issue")
+    # Long enough ago that a refund the gateway does not know about would be marked failed and retryable.
+    Refund.objects.filter(pk=refund.pk).update(issued_at=timezone.now() - timedelta(minutes=40))
+
+    # The gateway did accept it, but 120 other refunds on the payment are listed ahead of it.
+    others = [{"id": f"rfnd_{n}", "status": "processed", "notes": {"refund": f"other{n}"}} for n in range(120)]
+    ours = {"id": "rfnd_ours", "status": "processed", "notes": {"refund": f"{refund.pk.hex}a1"}}
+
+    def page(call):
+        skip, count = call.params["skip"], call.params["count"]
+        return {"items": [*others, ours][skip : skip + count]}
+
+    razorpay.on("GET", "/payments/pay_XYZ/refunds", page)
+    assert services.reconcile() == 1
+    asked = [call.params for call in razorpay.calls if call.url.endswith("/payments/pay_XYZ/refunds")]
+    assert asked == [{"count": 100, "skip": 0}, {"count": 100, "skip": 100}]
+    refund.refresh_from_db()
+    assert (refund.status, refund.gateway_refund_id) == ("PROCESSED", "rfnd_ours")
+    assert desk.post(f"/api/refunds/{refund.pk}/issue").status_code == 409  # no second refund
+
+
 def test_refund_the_gateway_never_received_becomes_retryable(requester, manager, approved, razorpay):
     razorpay_paid(requester, approved, razorpay)
     desk = client_for(manager)
@@ -796,6 +825,48 @@ def test_mobikwik_refund_request_and_status(client, requester, manager, approved
     again = Refund.objects.exclude(pk=refund.pk).get()
     mobikwik.on("POST", "/api/payments/v1/refund", refused)
     assert desk.post(f"/api/refunds/{again.pk}/issue").data["failure_reason"] == "Already refunded"
+
+
+def test_mobikwik_refund_listed_more_than_once_is_read_as_a_whole(client, requester, manager, approved, mobikwik):
+    payment, _ = open_order(client_for(requester), approved, "mobikwik")
+    mobikwik.on("POST", "/api/payments/v1/status", zaakpay_status(payment, "0"))
+    assert services.check(payment)
+    desk = client_for(manager)
+    url = f"/api/bookings/{approved.pk}/refunds"
+    mobikwik.on(
+        "POST",
+        "/api/payments/v1/refund",
+        {"status": True, "message": {"code": 100}, "data": {"refundStatus": "PENDING"}},
+    )
+    for amount in ("500", "300", "200"):
+        desk.post(url, {"amount": amount, "reason": "Left early"}, format="json")
+    done, waiting, failed = Refund.objects.order_by("-amount")
+    for refund in (done, waiting, failed):
+        assert desk.post(f"/api/refunds/{refund.pk}/issue").data["status"] == "PROCESSING"
+    Refund.objects.update(issued_at=timezone.now() - timedelta(minutes=10))
+
+    def row(refund, status):
+        return {"merchantRefId": f"{refund.pk.hex}a1", "amount": str(int(refund.amount * 100)), "refundStatus": status}
+
+    # The gateway lists a refund once for each state it has been through, oldest first.
+    listed = [
+        row(done, "PENDING"), row(done, "SUCCESS"),
+        row(waiting, "FAILED"), row(waiting, "PENDING"),
+        row(failed, "FAILED"), row(failed, "FAILED"),
+    ]  # fmt: skip
+    mobikwik.on("POST", "/api/payments/v1/status", zaakpay_status(payment, "4", refunds=listed))
+    assert services.reconcile() == 2
+    states = {refund.amount: refund.status for refund in Refund.objects.all()}
+    assert states == {Decimal("500.00"): "PROCESSED", Decimal("300.00"): "PROCESSING", Decimal("200.00"): "FAILED"}
+    assert Payment.objects.get().refunded_amount == Decimal("500.00")
+
+    # The webhook reads the same records the same way: one answer for each refund, never a failure for
+    # a refund that also shows as returned or as still in progress.
+    events = gateways.adapter("mobikwik")._refund_events_from({"refundDetails": listed})
+    assert [(event.kind, event.refund_ref) for event in events] == [
+        (gateways.REFUND_PROCESSED, f"{done.pk.hex}a1"),
+        (gateways.REFUND_FAILED, f"{failed.pk.hex}a1"),
+    ]
 
 
 # --- Receipts -----------------------------------------------------------------

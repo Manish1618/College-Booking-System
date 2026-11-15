@@ -190,11 +190,12 @@ class RazorpayGateway(Gateway):
     api = "https://api.razorpay.com/v1"
     retries_within_order = True
 
-    def _call(self, method, path, payload=None):
+    def _call(self, method, path, payload=None, params=None):
         status, data = self._request(
             method,
             f"{self.api}{path}",
             json=payload,
+            params=params,
             auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET),
         )
         if status >= 400:
@@ -290,11 +291,23 @@ class RazorpayGateway(Gateway):
     def refund_status(self, payment, refund):
         if refund.gateway_refund_id:
             return self._refund_state(self._call("GET", f"/refunds/{refund.gateway_refund_id}"))
-        for item in self._call("GET", f"/payments/{payment.gateway_payment_id}/refunds").get("items", []):
+        for item in self._every("GET", f"/payments/{payment.gateway_payment_id}/refunds"):
             if (item.get("notes") or {}).get("refund") == refund.reference:
                 refund.gateway_refund_id = item["id"]
                 return self._refund_state(item)
-        return UNKNOWN
+        return UNKNOWN  # safe to say only because every page was read
+
+    PAGE = 100  # the most Razorpay returns in one list call; without `count` it returns 10
+
+    def _every(self, method, path):
+        """Every item of a list. Stopping at the first page could miss a refund that exists."""
+        skip = 0
+        while True:
+            items = self._call(method, path, params={"count": self.PAGE, "skip": skip}).get("items") or []
+            yield from items
+            if len(items) < self.PAGE:
+                return
+            skip += len(items)
 
     @staticmethod
     def _refund_state(data):
@@ -405,20 +418,33 @@ class MobikwikGateway(Gateway):
             return Event(kind=FAILED, order_id=payment.order_id, reason=reason)
         return None  # pending, or a later state such as refunded that this lookup does not act on
 
+    def _refund_states(self, order):
+        """The state of each refund on an order, by our reference.
+
+        One refund can be listed more than once, for example as pending and again as successful. The
+        records are read together: money returned outweighs everything, and a refund still in progress
+        outweighs a failure.
+        """
+        states = {}
+        for detail in (order or {}).get("refundDetails") or []:
+            reference, state = str(detail.get("merchantRefId", "")), self._refund_state(detail)
+            if reference not in states or self.WEIGHT[state] > self.WEIGHT[states[reference]]:
+                states[reference] = state
+        return states
+
+    WEIGHT = {REJECTED: 0, PENDING: 1, PROCESSED: 2}
+
     def _refund_events_from(self, order):
-        events = []
-        for detail in order.get("refundDetails") or []:
-            state = self._refund_state(detail)
-            if state in (PROCESSED, REJECTED):
-                events.append(
-                    Event(
-                        kind=REFUND_PROCESSED if state == PROCESSED else REFUND_FAILED,
-                        refund_ref=str(detail.get("merchantRefId", "")),
-                        refund_id=str(detail.get("merchantRefId", "")),
-                        reason="MobiKwik could not complete the refund." if state == REJECTED else "",
-                    )
-                )
-        return events
+        return [
+            Event(
+                kind=REFUND_PROCESSED if state == PROCESSED else REFUND_FAILED,
+                refund_ref=reference,
+                refund_id=reference,
+                reason="MobiKwik could not complete the refund." if state == REJECTED else "",
+            )
+            for reference, state in self._refund_states(order).items()
+            if state in (PROCESSED, REJECTED)
+        ]
 
     def refund(self, payment, refund):
         reference = refund.reference  # new for every attempt: the gateway refuses a reused one
@@ -441,12 +467,11 @@ class MobikwikGateway(Gateway):
         return reference, self._refund_state(data.get("data") or {})
 
     def refund_status(self, payment, refund):
-        order = self._lookup(payment.order_id)
-        for detail in (order or {}).get("refundDetails") or []:
-            if detail.get("merchantRefId") == refund.reference:
-                refund.gateway_refund_id = refund.reference
-                return self._refund_state(detail)
-        return UNKNOWN
+        state = self._refund_states(self._lookup(payment.order_id)).get(refund.reference)
+        if state is None:
+            return UNKNOWN
+        refund.gateway_refund_id = refund.reference
+        return state
 
     @staticmethod
     def _refund_state(detail):
