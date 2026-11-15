@@ -10,7 +10,7 @@ import { isManager, useMe } from "@/lib/hooks";
 import type { Page, RegisterEntry } from "@/lib/types";
 
 const exportLink =
-  "inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-50";
+  "inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-card px-4 text-sm font-medium text-slate-800 hover:bg-slate-50";
 
 type Filters = { search: string; from: string; to: string };
 const noFilters: Filters = { search: "", from: "", to: "" };
@@ -105,7 +105,7 @@ export default function RegisterPage() {
       {entries.error && <Notice tone="error">{entries.error.message}</Notice>}
       {entries.data?.results.length === 0 && <Notice>No register entries match.</Notice>}
       {entries.data && entries.data.results.length > 0 && (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white print:overflow-visible print:border-0">
+        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-card print:overflow-visible print:border-0">
           <table className="w-full min-w-[60rem] text-left text-sm print:min-w-0 print:text-xs">
             <thead className="bg-slate-50 text-slate-700">
               <tr>

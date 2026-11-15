@@ -8,12 +8,18 @@ import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { DayPicker, type DateRange } from "react-day-picker";
 
+import dynamic from "next/dynamic";
+
 import Endless, { type EndlessSlide } from "@/components/ui/endless";
 import SushiConveyorMenu, { type ConveyorDish } from "@/components/ui/sushi-conveyor-menu";
+import { TiltCard } from "@/components/tilt-card";
 import { api, fmtDate, inr, isoDate } from "@/lib/api";
 import { bedPlate, priceTiers } from "@/lib/room-plates";
 import type { Availability, Photo, RoomType } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+// three.js is large and browser-only: load the model after the page, never on the server.
+const GuesthouseModel = dynamic(() => import("@/components/guesthouse-model"), { ssr: false });
 
 /** Shown in the corridor while room types load, or if none are open yet. */
 const PLACEHOLDER_SLIDES: EndlessSlide[] = [
@@ -90,6 +96,10 @@ export default function HomePage() {
     return fromTypes.length ? fromTypes : PLACEHOLDER_SLIDES;
   }, [types]);
 
+  const fromPrice = types.reduce<number | null>((min, t) => {
+    const price = Number(t.price_per_night);
+    return t.price_per_night && (min === null || price < min) ? price : min;
+  }, null);
   const wantedType = types.find((t) => t.id === wanted);
   const wantedSlot = wanted ? byType.get(wanted) : undefined;
 
@@ -118,7 +128,7 @@ export default function HomePage() {
         };
 
   return (
-    <div className="dark relative -my-8 mx-[calc(50%-50vw)] bg-background pb-16 text-foreground">
+    <div className="dark relative -my-10 mx-[calc(50%-50vw)] bg-background pb-16 text-foreground">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 overflow-hidden"
@@ -128,47 +138,59 @@ export default function HomePage() {
         }}
       />
 
-      <Endless
-        slides={slides}
-        height="min(78svh, 720px)"
-        aria-label="Guesthouse rooms"
-        title={
-          <motion.span
-            className="flex flex-col items-center gap-3 rounded-[2rem] border border-gold/15 bg-black/55 px-6 py-8 shadow-[0_30px_80px_-30px_rgb(0_0_0/0.9)] backdrop-blur-md md:px-12 md:py-10"
-            initial={reduce ? false : { opacity: 0, y: 16, filter: "blur(6px)" }}
-            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-            transition={{ duration: 0.9, ease: [0.22, 0.85, 0.3, 1] }}
-          >
-            <span className="text-[11px] font-medium uppercase tracking-[0.35em] text-gold md:text-xs">College Guesthouse</span>
-            <span className="bg-gradient-to-b from-[#fff7dc] via-gold-soft to-gold bg-clip-text text-3xl font-medium leading-tight tracking-tight text-transparent md:text-5xl lg:text-6xl">
-              Book a guesthouse room
-            </span>
-            <span className="max-w-md text-sm font-normal leading-relaxed tracking-normal text-muted-foreground md:text-base">
-              Pick your dates, choose a room, and the college approves the request before you pay.
-            </span>
-          </motion.span>
-        }
-      >
-        <div className="absolute inset-x-0 bottom-10 flex justify-center px-4">
-          <motion.button
-            type="button"
-            onClick={scrollToDates}
-            className={cn("glass", ghostButton)}
-            initial={reduce ? false : { opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.5 }}
-          >
-            Choose your dates
-            <ArrowDown aria-hidden="true" className="size-4" />
-          </motion.button>
+      <section aria-labelledby="hero-heading" className="relative mx-auto grid w-full max-w-6xl items-center gap-6 px-4 pt-10 md:pt-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:gap-4">
+        <motion.div
+          className="relative z-10 order-2 lg:order-1"
+          initial={reduce ? false : { opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.9, ease: [0.22, 0.85, 0.3, 1] }}
+        >
+          <p className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.35em] text-gold">
+            <span aria-hidden="true" className="h-px w-10 bg-gradient-to-r from-gold to-transparent" />
+            College Guesthouse
+          </p>
+          <h1 id="hero-heading" className="mt-5 text-5xl font-semibold leading-[1.02] tracking-tight text-foreground md:text-6xl xl:text-7xl">
+            Stay on campus,{" "}
+            <span className="bg-gradient-to-b from-[#fff3cf] via-gold-soft to-gold bg-clip-text italic text-transparent">in quiet comfort.</span>
+          </h1>
+          <p className="mt-6 max-w-md text-base leading-relaxed text-muted-foreground md:text-lg">
+            Pick your dates and a room. The college approves your request, then you pay online and get your room on arrival.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <button type="button" onClick={scrollToDates} className={goldButton}>
+              Check availability
+              <ArrowDown aria-hidden="true" className="size-4" />
+            </button>
+            <a href="#rooms" className={ghostButton}>
+              See the rooms
+            </a>
+          </div>
+          {types.length > 0 && (
+            <dl className="mt-10 grid max-w-md grid-cols-3 divide-x divide-gold/15 rounded-2xl border border-gold/15 bg-white/[0.02] py-4 backdrop-blur-sm">
+              {[
+                ["Room types", String(types.length)],
+                ["Rooms", String(types.reduce((sum, t) => sum + t.room_count, 0))],
+                ["From", fromPrice ? `${inr(fromPrice)}` : "—"],
+              ].map(([label, value]) => (
+                <div key={label} className="px-4">
+                  <dt className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">{label}</dt>
+                  <dd className="mt-1 font-display text-2xl font-semibold text-gold-soft">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </motion.div>
+        <div className="relative order-1 -mx-4 h-[340px] sm:h-[420px] lg:order-2 lg:mx-0 lg:h-[560px]">
+          <div aria-hidden="true" className="absolute inset-x-[10%] bottom-[8%] top-[20%] rounded-full bg-gold/10 blur-3xl" />
+          <GuesthouseModel className="relative size-full" />
         </div>
-      </Endless>
+      </section>
 
-      <div className="relative mx-auto w-full max-w-5xl px-4">
+      <div className="relative mx-auto w-full max-w-6xl px-4">
         <motion.div
           ref={datesRef}
           {...rise()}
-          className="glass -mt-6 grid scroll-mt-6 gap-6 rounded-3xl p-5 md:grid-cols-[auto_1fr] md:p-7"
+          className="glass mt-6 grid scroll-mt-6 gap-6 rounded-3xl p-5 md:grid-cols-[auto_1fr] md:p-7"
         >
           <div>
             <h2 className="mb-2 flex items-center gap-2 font-medium text-gold-soft">
@@ -258,7 +280,7 @@ export default function HomePage() {
         </motion.div>
       )}
 
-      <section id="rooms" aria-labelledby="rooms-heading" className="relative mx-auto mt-10 w-full max-w-5xl scroll-mt-6 px-4">
+      <section id="rooms" aria-labelledby="rooms-heading" className="relative mx-auto mt-10 w-full max-w-6xl scroll-mt-6 px-4">
         <motion.h2 {...rise()} id="rooms-heading" className="mb-4 flex items-center gap-2 text-xl font-medium text-gold-soft">
           <Sparkles aria-hidden="true" className="size-4 text-gold" />
           All rooms
@@ -275,10 +297,9 @@ export default function HomePage() {
             const slot = byType.get(type.id);
             const cover = coverOf(type);
             return (
-              <motion.article
+              <TiltCard
                 key={type.id}
                 {...rise(Math.min(index, 4) * 0.06)}
-                whileHover={reduce ? undefined : { y: -3 }}
                 className={cn(
                   "glass flex flex-col gap-4 rounded-3xl p-4 sm:flex-row sm:p-5",
                   wanted === type.id && "ring-1 ring-gold/60",
@@ -342,10 +363,33 @@ export default function HomePage() {
                     )}
                   </div>
                 </div>
-              </motion.article>
+              </TiltCard>
             );
           })}
         </div>
+      </section>
+
+      <section aria-labelledby="walk-heading" className="relative mt-20">
+        <h2 id="walk-heading" className="sr-only">
+          Walk through the rooms
+        </h2>
+        <Endless
+          slides={slides}
+          height="min(70svh, 640px)"
+          aria-label="Rooms at the guesthouse"
+          title={
+            <span className="block rounded-[2rem] border border-gold/15 bg-black/55 px-6 py-8 backdrop-blur-md md:px-12">
+              <span className="block text-[11px] font-semibold uppercase tracking-[0.35em] text-gold">Walk through</span>
+              <span className="mt-3 block font-display text-4xl font-semibold text-gold-soft md:text-5xl">Every room, one request away</span>
+            </span>
+          }
+        >
+          <div className="absolute inset-x-0 bottom-10 flex justify-center px-4">
+            <button type="button" onClick={scrollToDates} className={goldButton}>
+              Check availability
+            </button>
+          </div>
+        </Endless>
       </section>
     </div>
   );

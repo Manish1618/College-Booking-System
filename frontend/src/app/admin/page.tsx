@@ -88,7 +88,7 @@ export default function AdminPage() {
                       value={user.role}
                       disabled={user.id === me?.id}
                       onChange={(e) => run(() => api(`/users/${user.id}`, { method: "PATCH", body: { role: e.target.value } }))}
-                      className="min-h-9 rounded-md border border-slate-300 bg-white px-2"
+                      className="min-h-9 rounded-md border border-slate-300 bg-card px-2"
                     >
                       {ROLES.map(([value, label]) => (
                         <option key={value} value={value}>

@@ -24,7 +24,7 @@ const DESK_FILTERS = [
 ] as const;
 
 const pagerLink =
-  "inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-50";
+  "inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-card px-4 text-sm font-medium text-slate-800 hover:bg-slate-50";
 
 export default function BookingsPage() {
   const params = useSearchParams();
@@ -72,7 +72,7 @@ export default function BookingsPage() {
               href={`/bookings?view=desk${value ? `&status=${value}` : ""}`}
               aria-current={status === value ? "page" : undefined}
               className={`rounded-full border px-3 py-1.5 text-sm ${
-                status === value ? "border-brand-600 bg-brand-600 text-white" : "border-slate-300 bg-white"
+                status === value ? "border-gold bg-gold text-black" : "border-slate-300 bg-card"
               }`}
             >
               {label}

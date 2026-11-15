@@ -40,36 +40,97 @@
   --color-gold: #d4af37;
   --color-gold-soft: #f1dfa4;
 
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: var(--font-cormorant), ui-serif, Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
-.dark {
-  --color-background: #0a0907;
-  --color-foreground: #f4ead2;
-  --color-card: #15120d;
-  --color-card-foreground: #f4ead2;
-  --color-popover: #15120d;
-  --color-popover-foreground: #f4ead2;
-  --color-primary: #d4af37;
-  --color-primary-foreground: #0a0907;
-  --color-secondary: #221d14;
-  --color-secondary-foreground: #f4ead2;
-  --color-muted: #1d1912;
-  --color-muted-foreground: #a99b7c;
-  --color-accent: #2b2414;
-  --color-accent-foreground: #f1dfa4;
-  --color-destructive: #f87171;
-  --color-border: #3b3221;
-  --color-input: #4a3f29;
-  --color-ring: #d4af37;
-  /* Price tiers, cheapest to dearest: bronze through to pale gold. */
-  --color-chart-1: #9a7445;
-  --color-chart-2: #b98f4e;
-  --color-chart-3: #d4af37;
-  --color-chart-4: #e6c766;
-  --color-chart-5: #f6e3a1;
-  color-scheme: dark;
+/* Screen only: printed slips, registers and receipts stay black on white. */
+@media screen {
+  .dark {
+    --color-background: #0a0907;
+    --color-foreground: #f4ead2;
+    --color-card: #15120d;
+    --color-card-foreground: #f4ead2;
+    --color-popover: #15120d;
+    --color-popover-foreground: #f4ead2;
+    --color-primary: #d4af37;
+    --color-primary-foreground: #0a0907;
+    --color-secondary: #221d14;
+    --color-secondary-foreground: #f4ead2;
+    --color-muted: #1d1912;
+    --color-muted-foreground: #a99b7c;
+    --color-accent: #2b2414;
+    --color-accent-foreground: #f1dfa4;
+    --color-destructive: #f87171;
+    --color-border: #3b3221;
+    --color-input: #4a3f29;
+    --color-ring: #d4af37;
+    /* Price tiers, cheapest to dearest: bronze through to pale gold. */
+    --color-chart-1: #9a7445;
+    --color-chart-2: #b98f4e;
+    --color-chart-3: #d4af37;
+    --color-chart-4: #e6c766;
+    --color-chart-5: #f6e3a1;
+    color-scheme: dark;
+  }
+
+  /* Inside the black-and-gold theme the existing screens' palette classes (slate text, brand teal,
+     status tints) are re-pointed at theme colours, so pages written for the light theme read
+     correctly without a dark: variant on every class. */
+  .dark {
+    --color-slate-50: rgb(255 255 255 / 0.04);
+    --color-slate-100: rgb(255 255 255 / 0.07);
+    --color-slate-200: #3b3221;
+    --color-slate-300: #4a3f29;
+    --color-slate-400: #8a7d62;
+    --color-slate-500: #a99b7c;
+    --color-slate-600: #b9ab8c;
+    --color-slate-700: #d6c9a8;
+    --color-slate-800: #eadfc2;
+    --color-slate-900: #f4ead2;
+    --color-brand-50: rgb(212 175 55 / 0.10);
+    --color-brand-100: rgb(212 175 55 / 0.22);
+    --color-brand-600: #d4af37;
+    --color-brand-700: #e6c766;
+    --color-brand-900: #f1dfa4;
+    --color-red-50: rgb(248 113 113 / 0.08);
+    --color-red-100: rgb(248 113 113 / 0.16);
+    --color-red-200: rgb(248 113 113 / 0.32);
+    --color-red-300: rgb(248 113 113 / 0.45);
+    --color-red-700: #fca5a5;
+    --color-red-800: #fca5a5;
+    --color-red-900: #fca5a5;
+    --color-amber-50: rgb(251 191 36 / 0.08);
+    --color-amber-100: rgb(251 191 36 / 0.16);
+    --color-amber-200: rgb(251 191 36 / 0.32);
+    --color-amber-300: rgb(251 191 36 / 0.45);
+    --color-amber-700: #fcd34d;
+    --color-amber-800: #fcd34d;
+    --color-amber-900: #fcd34d;
+    --color-emerald-50: rgb(52 211 153 / 0.08);
+    --color-emerald-100: rgb(52 211 153 / 0.16);
+    --color-emerald-200: rgb(52 211 153 / 0.32);
+    --color-emerald-300: rgb(52 211 153 / 0.45);
+    --color-emerald-700: #6ee7b7;
+    --color-emerald-800: #6ee7b7;
+    --color-emerald-900: #6ee7b7;
+    --color-sky-50: rgb(56 189 248 / 0.08);
+    --color-sky-100: rgb(56 189 248 / 0.16);
+    --color-sky-200: rgb(56 189 248 / 0.32);
+    --color-sky-300: rgb(56 189 248 / 0.45);
+    --color-sky-700: #7dd3fc;
+    --color-sky-800: #7dd3fc;
+    --color-sky-900: #7dd3fc;
+    --color-orange-50: rgb(251 146 60 / 0.08);
+    --color-orange-100: rgb(251 146 60 / 0.16);
+    --color-orange-200: rgb(251 146 60 / 0.32);
+    --color-orange-300: rgb(251 146 60 / 0.45);
+    --color-orange-700: #fdba74;
+    --color-orange-800: #fdba74;
+    --color-orange-900: #fdba74;
+  }
 }
+
 
 .dark .rdp-root {
   --rdp-accent-color: #d4af37;
@@ -97,8 +158,24 @@
 body {
   /* Full-bleed sections use 100vw, which includes the scrollbar; clip rather than scroll sideways. */
   overflow-x: clip;
-  background: #f6f7f8;
-  color: #1c2526;
+  background: var(--color-background);
+  color: var(--color-foreground);
+}
+
+@media screen {
+  /* A low gold light from the top corners gives every screen some depth. */
+  body {
+    background:
+      radial-gradient(70% 50% at 0% 0%, rgb(212 175 55 / 0.07), transparent 60%),
+      radial-gradient(60% 45% at 100% 0%, rgb(212 175 55 / 0.05), transparent 60%),
+      var(--color-background);
+    background-attachment: fixed;
+  }
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
 }
 
 .rdp-root {

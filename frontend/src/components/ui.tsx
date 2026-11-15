@@ -10,16 +10,17 @@ export function Button({
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "danger" }) {
   const styles = {
-    primary: "bg-brand-600 text-white hover:bg-brand-700",
-    secondary: "border border-slate-300 bg-white text-slate-800 hover:bg-slate-50",
-    danger: "border border-red-300 bg-white text-red-700 hover:bg-red-50",
+    primary:
+      "bg-gradient-to-b from-gold-soft to-gold text-black shadow-[0_10px_28px_-14px_rgb(212_175_55/0.9)] enabled:hover:-translate-y-px enabled:hover:shadow-[0_14px_34px_-14px_rgb(212_175_55/1)] print:bg-none print:border print:border-black",
+    secondary: "border border-slate-300 bg-transparent text-slate-800 hover:border-gold/60 hover:bg-gold/10",
+    danger: "border border-red-300 bg-transparent text-red-700 hover:bg-red-50",
   }[variant];
   return (
     <button
       type="button"
       {...props}
       className={cx(
-        "inline-flex min-h-11 items-center justify-center rounded-md px-4 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+        "inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-5 text-sm font-semibold tracking-wide transition-[color,background-color,border-color,translate,box-shadow] duration-200 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none",
         styles,
         className,
       )}
@@ -28,7 +29,7 @@ export function Button({
 }
 
 export const inputClass =
-  "block min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-base text-slate-900 placeholder:text-slate-400";
+  "block min-h-11 w-full rounded-xl border border-slate-300 bg-white/[0.03] px-3.5 text-base text-slate-900 shadow-[inset_0_1px_2px_rgb(0_0_0/0.25)] transition-colors placeholder:text-slate-400 hover:border-gold/40 focus:border-gold/70 print:bg-transparent";
 
 export function Field({
   label,
@@ -63,7 +64,7 @@ export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
 }
 
 export function Card({ children, className }: { children: ReactNode; className?: string }) {
-  return <section className={cx("rounded-lg border border-slate-200 bg-white p-5", className)}>{children}</section>;
+  return <section className={cx("glass rounded-2xl p-5 md:p-6 print:border print:border-slate-300 print:shadow-none", className)}>{children}</section>;
 }
 
 export function Notice({ tone = "info", children }: { tone?: "info" | "error" | "success"; children: ReactNode }) {
@@ -73,7 +74,7 @@ export function Notice({ tone = "info", children }: { tone?: "info" | "error" | 
     success: "border-emerald-200 bg-emerald-50 text-emerald-900",
   }[tone];
   return (
-    <div role={tone === "error" ? "alert" : "status"} className={cx("rounded-md border px-4 py-3 text-sm", styles)}>
+    <div role={tone === "error" ? "alert" : "status"} className={cx("rounded-xl border px-4 py-3 text-sm backdrop-blur-sm", styles)}>
       {children}
     </div>
   );
@@ -104,9 +105,10 @@ export function StatusBadge({ status, label }: { status: BookingStatus; label: s
 
 export function PageTitle({ title, children }: { title: string; children?: ReactNode }) {
   return (
-    <div className="mb-6">
-      <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>
-      {children && <p className="mt-1 text-slate-600">{children}</p>}
+    <div className="mb-8">
+      <span aria-hidden="true" className="mb-3 block h-px w-12 bg-gradient-to-r from-gold to-transparent print:hidden" />
+      <h1 className="text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">{title}</h1>
+      {children && <p className="mt-2 max-w-2xl text-slate-600">{children}</p>}
     </div>
   );
 }
