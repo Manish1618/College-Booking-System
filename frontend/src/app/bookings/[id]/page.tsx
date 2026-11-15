@@ -6,16 +6,20 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { Button, Card, Field, inputClass, Loading, Notice, StatusBadge } from "@/components/ui";
-import { api, fmtDate, fmtDateTime, inr } from "@/lib/api";
-import { useRefresh } from "@/lib/hooks";
+import { api, fmtDate, fmtDateTime, inr, inrExact } from "@/lib/api";
+import { isManager, useMe, useRefresh } from "@/lib/hooks";
 import { ID_TYPES, type Booking, type Room } from "@/lib/types";
+
+import { CancelPanel, CheckInPanel, CheckOutPanel, PayPanel, PaymentCard } from "./money-panels";
 
 const DECISIONS = { APPROVED: "Approved", REJECTED: "Rejected", SENT_BACK: "Sent back" } as Record<string, string>;
 
 export default function BookingPage() {
   const { id } = useParams<{ id: string }>();
-  const carried = useSearchParams().get("problem");
+  const params = useSearchParams();
+  const carried = params.get("problem");
   const refresh = useRefresh();
+  const { data: me } = useMe();
   const booking = useQuery({ queryKey: ["booking", id], queryFn: () => api<Booking>(`/bookings/${id}`) });
   const [error, setError] = useState(carried ?? "");
   const [busy, setBusy] = useState(false);
@@ -59,7 +63,9 @@ export default function BookingPage() {
 
       {b.actions.decide && <DecisionPanel busy={busy} onDecide={(body) => act("decide", body)} />}
       {b.actions.allot && <AllotPanel booking={b} busy={busy} onAllot={(room) => act("allot", { room })} />}
-      {b.actions.pay && <PayPanel booking={b} busy={busy} onPay={(gateway) => act("pay", { gateway })} />}
+      {b.actions.pay && <PayPanel booking={b} justReturned={params.get("returned") === "1"} />}
+      {b.actions.check_in && <CheckInPanel booking={b} />}
+      {b.actions.check_out && <CheckOutPanel booking={b} />}
       {b.actions.edit && (
         // The key remounts the panel after each save, so its fields start again from what the server stored.
         // It covers only what the panel edits: uploading a document must not throw away unsaved corrections.
@@ -70,7 +76,7 @@ export default function BookingPage() {
         />
       )}
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 *:min-w-0 md:grid-cols-2">
         <Card>
           <h2 className="mb-3 font-semibold">Stay</h2>
           <dl className="grid grid-cols-[8rem_1fr] gap-y-2 text-sm">
@@ -85,7 +91,7 @@ export default function BookingPage() {
             <dt className="text-slate-600">Requested by</dt>
             <dd>
               {b.requester.name || "—"}
-              <span className="block text-slate-600">{b.requester.email ?? b.requester.phone}</span>
+              <span className="block break-all text-slate-600">{b.requester.email ?? b.requester.phone}</span>
               {b.requester.department && <span className="block text-slate-600">{b.requester.department}</span>}
             </dd>
           </dl>
@@ -158,6 +164,7 @@ export default function BookingPage() {
                       {guest.has_id_document ? "ID uploaded" : "ID not uploaded"}
                     </p>
                   ))}
+                {guest.id_verified && <p className="text-emerald-700">ID checked at the desk</p>}
               </li>
             ))}
           </ul>
@@ -183,15 +190,9 @@ export default function BookingPage() {
         </Card>
       </div>
 
-      {b.actions.cancel && (
-        <Button
-          variant="danger"
-          disabled={busy}
-          onClick={() => window.confirm("Cancel this booking? The room will be released.") && act("cancel")}
-        >
-          Cancel booking
-        </Button>
-      )}
+      <PaymentCard booking={b} />
+
+      {b.actions.cancel && <CancelPanel booking={b} staff={isManager(me)} />}
       <p>
         <Link href="/bookings" className="text-sm text-brand-700 hover:underline">
           Back to bookings
@@ -203,6 +204,9 @@ export default function BookingPage() {
 
 function NextStep({ booking: b }: { booking: Booking }) {
   const deadline = b.hold_expires_at ? fmtDateTime(b.hold_expires_at) : "";
+  const dueBack = (b.payment?.refunds ?? [])
+    .filter((refund) => refund.status !== "PROCESSED")
+    .reduce((sum, refund) => sum + Number(refund.amount), 0);
   const text: Partial<Record<Booking["status"], string>> = {
     DRAFT: "This request is saved but not submitted. Add anything missing below, then submit it.",
     PENDING: `Waiting for approval. The dates are held until ${deadline}.`,
@@ -210,9 +214,20 @@ function NextStep({ booking: b }: { booking: Booking }) {
     APPROVED: `Approved. Payment is due by ${deadline}, or the dates are released.`,
     CONFIRMED: "Paid and confirmed. The guesthouse office will allot a room.",
     ALLOTTED: `Room ${b.room_number} is allotted. Bring the original ID at check-in.`,
+    CHECKED_IN: `Checked in to room ${b.room_number}. Check-out is on ${fmtDate(b.check_out)}.`,
+    CHECKED_OUT: "Checked out. Thank you for staying with us.",
     EXPIRED: "This request expired and the dates were released.",
   };
-  return text[b.status] ? <Notice>{text[b.status]}</Notice> : null;
+  const refundNote =
+    dueBack > 0 ? ` A refund of ${inrExact(dueBack)} is on its way from the guesthouse office.` : "";
+  if (b.status === "CANCELLED" && b.payment) return <Notice>This booking was cancelled.{refundNote}</Notice>;
+  if (!text[b.status] && !refundNote) return null;
+  return (
+    <Notice>
+      {text[b.status]}
+      {refundNote}
+    </Notice>
+  );
 }
 
 function DecisionPanel({ busy, onDecide }: { busy: boolean; onDecide: (body: object) => void }) {
@@ -270,28 +285,6 @@ function AllotPanel({ booking, busy, onAllot }: { booking: Booking; busy: boolea
           </Button>
         </div>
       )}
-    </Card>
-  );
-}
-
-function PayPanel({ booking, busy, onPay }: { booking: Booking; busy: boolean; onPay: (gateway: string) => void }) {
-  const gateways = useQuery({
-    queryKey: ["gateways"],
-    queryFn: () => api<{ id: string; label: string }[]>("/payments/gateways"),
-  });
-  return (
-    <Card className="space-y-3 border-brand-600">
-      <h2 className="font-semibold">Pay {inr(booking.amount)}</h2>
-      {gateways.data?.length === 0 && (
-        <Notice>Online payment is not switched on yet. Please contact the guesthouse office.</Notice>
-      )}
-      <div className="flex flex-wrap gap-3">
-        {gateways.data?.map((gateway) => (
-          <Button key={gateway.id} disabled={busy} onClick={() => onPay(gateway.id)}>
-            {gateway.label}
-          </Button>
-        ))}
-      </div>
     </Card>
   );
 }

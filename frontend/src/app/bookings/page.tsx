@@ -12,13 +12,14 @@ import type { Booking, Page } from "@/lib/types";
 const VIEWS = {
   mine: { title: "My bookings", query: "?scope=mine", empty: "You have no bookings yet." },
   approvals: { title: "Waiting for your decision", query: "?scope=approvals", empty: "Nothing is waiting for you." },
-  desk: { title: "Guesthouse desk", query: "?scope=desk", empty: "No bookings yet." },
+  desk: { title: "All bookings", query: "?scope=desk", empty: "No bookings yet." },
 } as const;
 
 const DESK_FILTERS = [
   ["", "All"],
   ["CONFIRMED", "To allot"],
   ["ALLOTTED", "Allotted"],
+  ["CHECKED_IN", "In house"],
   ["PENDING,APPROVED", "In progress"],
 ] as const;
 

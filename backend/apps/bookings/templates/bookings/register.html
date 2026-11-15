@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Guest register</title>
 <style>
-  @page { size: A4 landscape; margin: 12mm; @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 8pt; color: #64748b; } }
+  @page { size: A4 landscape; margin: 12mm; @bottom-right { content: "Page " counter(page) " of " counter(pages); font-family: "DejaVu Sans", sans-serif; font-size: 8pt; color: #64748b; } }
   body { font-family: "DejaVu Sans", sans-serif; font-size: 8pt; color: #1e293b; }
   h1 { font-size: 14pt; margin: 0 0 2pt; }
   p { margin: 0 0 8pt; color: #64748b; }
@@ -13,6 +13,7 @@
   th, td { text-align: left; padding: 3pt 4pt; border: .5pt solid #94a3b8; vertical-align: top; }
   th { background: #e2e8f0; }
   tr { break-inside: avoid; }
+  td:nth-child(-n+2) { white-space: nowrap; }
 </style>
 </head>
 <body>

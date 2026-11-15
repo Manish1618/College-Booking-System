@@ -5,30 +5,8 @@ import { useState } from "react";
 
 import { Button, Card, Field, Input, inputClass, Loading, Notice, PageTitle } from "@/components/ui";
 import { api, fmtDate, inr, isoDate } from "@/lib/api";
-import { isManager, useMe, useRefresh } from "@/lib/hooks";
+import { isManager, useAction, useMe } from "@/lib/hooks";
 import type { Room, RoomType, Tariff } from "@/lib/types";
-
-/** Runs a change, then refetches. Returns the error message to show, if any. */
-function useAction() {
-  const refresh = useRefresh();
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  async function run(action: () => Promise<unknown>) {
-    setError("");
-    setBusy(true);
-    try {
-      await action();
-      await refresh();
-      return true;
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong.");
-      return false;
-    } finally {
-      setBusy(false);
-    }
-  }
-  return { run, error, busy };
-}
 
 export default function ManagePage() {
   const { data: me, isLoading } = useMe();

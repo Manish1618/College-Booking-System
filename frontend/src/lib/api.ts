@@ -79,6 +79,12 @@ export const inr = (amount: string | number | null | undefined) =>
         Number(amount),
       );
 
+/** Rupees with paise, for money that has actually moved (payments and refunds). */
+export const inrExact = (amount: string | number) =>
+  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 2 }).format(
+    Number(amount),
+  );
+
 export const fmtDate = (iso: string) =>
   new Date(iso + (iso.length === 10 ? "T00:00:00" : "")).toLocaleDateString("en-IN", {
     day: "numeric",

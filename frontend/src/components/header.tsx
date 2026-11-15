@@ -12,7 +12,9 @@ export function Header() {
     { href: "/", label: "Book a room", show: true },
     { href: "/bookings", label: "My bookings", show: !!me },
     { href: "/bookings?view=approvals", label: "Approvals", show: isApprover(me) },
-    { href: "/bookings?view=desk", label: "Desk", show: isManager(me) },
+    { href: "/desk", label: "Desk", show: isManager(me) },
+    { href: "/bookings?view=desk", label: "All bookings", show: isManager(me) },
+    { href: "/register", label: "Register", show: isManager(me) },
     { href: "/manage", label: "Rooms", show: isManager(me) },
     { href: "/admin", label: "Admin", show: isAdmin(me) },
   ].filter((link) => link.show);
@@ -26,7 +28,7 @@ export function Header() {
   }
 
   return (
-    <header className="border-b border-slate-200 bg-white">
+    <header className="border-b border-slate-200 bg-white print:hidden">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
         <Link href="/" className="text-lg font-semibold text-brand-700">
           College Guesthouse
