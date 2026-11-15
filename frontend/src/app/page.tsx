@@ -244,13 +244,13 @@ export default function HomePage() {
                       </Link>
                     </div>
                   ) : (
-                    <p className="mt-1 text-red-300">Not available for these dates. Try other dates or another room.</p>
+                    <p className="mt-1 text-red-700">Not available for these dates. Try other dates or another room.</p>
                   )}
                 </motion.div>
               )}
             </AnimatePresence>
             {availability.error && (
-              <p role="alert" className="text-sm text-red-300">
+              <p role="alert" className="text-sm text-red-700">
                 {availability.error.message}
               </p>
             )}
@@ -287,7 +287,7 @@ export default function HomePage() {
         </motion.h2>
         {roomTypes.isLoading && <p className="py-8 text-center text-muted-foreground">Loading…</p>}
         {roomTypes.error && (
-          <p role="alert" className="text-sm text-red-300">
+          <p role="alert" className="text-sm text-red-700">
             {roomTypes.error.message}
           </p>
         )}
@@ -336,7 +336,7 @@ export default function HomePage() {
                         <span className="text-sm font-normal text-muted-foreground"> / night</span>
                       </p>
                       {slot && (
-                        <p className={`text-sm ${slot.available ? "text-emerald-300" : "text-red-300"}`}>
+                        <p className={`text-sm ${slot.available ? "text-emerald-700" : "text-red-700"}`}>
                           {slot.available
                             ? `${slot.available} free · ${inr(slot.amount)} total`
                             : "Not available for these dates"}
