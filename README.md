@@ -163,7 +163,7 @@ npm ci && npm run dev                      # http://localhost:3000, proxies /api
 
 ```bash
 cd backend
-pytest --cov=apps                 # 204 tests; needs PostgreSQL and the Pango libraries (see below)
+pytest --cov=apps                 # 208 tests; needs PostgreSQL and the Pango libraries (see below)
 ruff check . && ruff format --check .
 bandit -q -r apps config -ll
 pip-audit -r requirements.txt

@@ -72,8 +72,15 @@ export function PayPanel({ booking, justReturned }: { booking: Booking; justRetu
         // Nothing is left to pay once the server has heard: the booking is confirmed, or its dates have moved.
         if (!latest.actions.pay) return void refresh();
         if (latest.payment && !latest.payment.pending) {
-          // The gateway has answered and it was not a success.
-          setError("The payment did not go through. No money was taken. You can try again.");
+          // The gateway has answered, and there is still something to pay. Either the payment failed, or it
+          // was taken on an order that no longer matches the booking (the dates or price changed since).
+          const taken = Number(latest.payment.paid) > Number(booking.payment?.paid ?? 0);
+          setError(
+            taken
+              ? "That payment was for an earlier price or dates, so it will be refunded in full. Please pay again for the current amount."
+              : "The payment did not go through. No money was taken. You can try again.",
+          );
+          if (taken) void refresh();
           return setPhase("choose");
         }
       } catch {

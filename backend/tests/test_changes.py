@@ -96,6 +96,33 @@ def test_approved_but_unpaid_request_goes_back_for_approval(requester, approver,
     assert Booking.objects.get(pk=booking.pk).status == Status.CONFIRMED
 
 
+def test_order_opened_before_the_dates_changed_cannot_confirm_the_new_stay(requester, approver, room_type, stay):
+    """The gateway still accepts the old order, at the old price. The money goes back; it does not confirm."""
+    booking = make_booking(
+        requester, room_type, stay, Status.APPROVED, hold_expires_at=timezone.now() + timedelta(hours=20)
+    )
+    client = client_for(requester)
+    old_order = client.post(f"/api/bookings/{booking.pk}/pay", {"gateway": "dev"}, format="json").data["payment"]
+    assert old_order["amount"] == "2000.00"
+    assert move(client, booking, *shifted(stay, 0, nights=3)).data["amount"] == "3000.00"
+    client_for(approver).post(f"/api/bookings/{booking.pk}/decide", {"decision": "APPROVED"}, format="json")
+
+    done = client.post("/api/payments/dev/complete", {"order_id": old_order["order_id"], "outcome": "paid"})
+    assert done.status_code == 200, done.data
+    data = client.get(f"/api/bookings/{booking.pk}").data
+    assert data["status"] == "APPROVED" and data["actions"]["pay"] is True and data["payment"]["due"] == "3000.00"
+    refund = Refund.objects.get()
+    assert (refund.amount, refund.status) == (Decimal("2000.00"), "DUE")
+    assert "earlier order" in refund.reason and "3000" in refund.reason
+
+    # Paying the current price confirms it, and the earlier payment is still owed back in full.
+    pay(client, booking.pk)
+    data = client.get(f"/api/bookings/{booking.pk}").data
+    assert (data["status"], data["payment"]["paid"]) == ("CONFIRMED", "5000.00")
+    assert data["payment"]["refund_on_cancel"]["amount"] == "3000.00"
+    assert Refund.objects.count() == 1
+
+
 # --- After payment: the booking is kept until the change is approved -----------
 def test_paid_booking_is_untouched_until_its_change_is_approved(requester, other_requester, approver, room_type, stay):
     booking = paid(requester, room_type, stay)
@@ -166,6 +193,42 @@ def test_shorter_stay_moves_at_once_and_the_difference_is_refunded(requester, ap
     # The manager issues it like any other refund.
     assert client_for(manager).post(f"/api/refunds/{refund.pk}/issue").data["status"] == "PROCESSED"
     assert client.get(f"/api/bookings/{booking.pk}").data["payment"]["refunded"] == "1000.00"
+
+
+@pytest.mark.parametrize("surplus_sent", [False, True])
+def test_cancelling_after_a_cheaper_change_refunds_a_share_of_the_new_price(
+    requester, approver, manager, room_type, stay, settings, surplus_sent
+):
+    """Half back on cancelling means half of what the stay costs now, not half of everything once paid."""
+    settings.REFUND_FULL_HOURS, settings.REFUND_PARTIAL_HOURS = 24 * 90, 24 * 5  # ten days out: the 50% window
+    booking = paid(requester, room_type, stay)
+    client = client_for(requester)
+    move(client, booking, *shifted(stay, 0, nights=1))
+    decide(client_for(approver), booking)
+    surplus = Refund.objects.get()
+    if surplus_sent:
+        assert client_for(manager).post(f"/api/refunds/{surplus.pk}/issue").data["status"] == "PROCESSED"
+
+    offer = client.get(f"/api/bookings/{booking.pk}").data["payment"]["refund_on_cancel"]
+    assert offer == {"percent": 50, "amount": "500.00", "full": "1000.00"}
+    assert client.post(f"/api/bookings/{booking.pk}/cancel").data["status"] == "CANCELLED"
+    on_cancel = Refund.objects.exclude(pk=surplus.pk).get()
+    assert on_cancel.amount == Decimal("500.00") and "50%" in on_cancel.reason
+    # Rs 2000 came in: Rs 1000 for the shorter stay's difference, Rs 500 on cancelling, Rs 500 kept.
+    assert sum(r.amount for r in Refund.objects.all()) == Decimal("1500.00")
+
+
+def test_cancelling_a_lengthened_stay_refunds_across_both_payments(requester, approver, room_type, stay, settings):
+    settings.REFUND_FULL_HOURS, settings.REFUND_PARTIAL_HOURS = 24 * 90, 24 * 5
+    booking = paid(requester, room_type, stay)
+    client = client_for(requester)
+    move(client, booking, *shifted(stay, 0, nights=3))
+    decide(client_for(approver), booking)
+    pay(client, booking.pk)
+    offer = client.get(f"/api/bookings/{booking.pk}").data["payment"]["refund_on_cancel"]
+    assert offer == {"percent": 50, "amount": "1500.00", "full": "3000.00"}
+    client.post(f"/api/bookings/{booking.pk}/cancel")
+    assert sorted(r.amount for r in Refund.objects.all()) == [Decimal("500.00"), Decimal("1000.00")]
 
 
 def test_rejected_change_leaves_the_booking_as_it_was(requester, approver, room_type, stay):

@@ -200,6 +200,8 @@ def on_balance_paid(booking, payment):
     change = DateChange.objects.select_for_update().filter(pk=payment.date_change_id).first()
     if change is None or change.status != State.AWAITING_PAYMENT or booking.status not in PAID:
         return "Paid for a change of dates that was no longer open."
+    if payment.amount != change.balance:
+        return f"Paid Rs {payment.amount} towards a change of dates whose balance is Rs {change.balance}."
     if change.expires_at < timezone.now():
         # The window closed while the guest was paying. Honour it if the new dates are still free.
         try:

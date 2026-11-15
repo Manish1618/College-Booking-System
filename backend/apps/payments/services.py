@@ -178,17 +178,21 @@ def _paid(gateway_name, event):
         # The balance for a change of dates: it moves the stay, it does not confirm anything.
         problem = changes.on_balance_paid(booking, payment)
     else:
-        problem = _cannot_confirm(booking)
+        problem = _cannot_confirm(booking, payment)
         if problem is None:
             bookings.confirm_paid(booking)
     if problem:
         propose_refund(payment, payment.amount, problem)
 
 
-def _cannot_confirm(booking):
+def _cannot_confirm(booking, payment):
     """Why a payment that just arrived cannot confirm its booking, or None if it can."""
     if booking.status != Status.APPROVED:
         return f"Paid when the booking was already {booking.get_status_display().lower()}."
+    if payment.amount != booking.amount:
+        # An order opened before the dates changed stays payable at the gateway. It must not confirm a
+        # stay that now costs something else; the money goes back and the guest pays the current price.
+        return f"Paid Rs {payment.amount} on an earlier order; the stay now costs Rs {booking.amount}."
     if not payable(booking):
         # The payment window closed while the guest was paying. Honour it if the room is still there.
         try:
@@ -236,12 +240,24 @@ def cancellation_percent(booking, *, now=None):
 def cancellation_refund(booking, *, percent=None, now=None):
     """(percent, amount) that cancelling would return. Amount is 0 when nothing was paid."""
     percent = cancellation_percent(booking, now=now) if percent is None else percent
-    amount = sum((_share(p, percent) for p in received(booking)), ZERO)
+    amount = sum((amount for _, amount in _shares(booking, percent)), ZERO)
     return percent, amount
 
 
-def _share(payment, percent):
-    return min((payment.amount * percent / 100).quantize(CENT), refundable(payment))
+def _shares(booking, percent):
+    """[(payment, amount)] that returns a percentage of the stay's charge, newest payment first.
+
+    The percentage is of what the stay costs now, not of everything ever paid. After a change to a
+    cheaper stay the difference is already on its way back, and it must not be counted a second time.
+    """
+    remaining = (booking.amount * percent / 100).quantize(CENT)
+    parts = []
+    for payment in reversed(received(booking)):
+        amount = min(remaining, refundable(payment))
+        if amount > 0:
+            parts.append((payment, amount))
+            remaining -= amount
+    return parts
 
 
 def propose_refund(payment, amount, reason, *, requested_by=None):
@@ -283,16 +299,14 @@ def on_cancelled(booking, actor, *, full=False):
         if full
         else f"Cancelled by the guest: {percent}% refund under the cancellation rules."
     )
-    for payment in received(booking):
-        propose_refund(payment, _share(payment, percent), reason, requested_by=actor)
+    for payment, amount in _shares(booking, percent):
+        propose_refund(payment, amount, reason, requested_by=actor)
 
 
 def on_no_show(booking):
-    for payment in received(booking):
+    for payment, amount in _shares(booking, settings.REFUND_NO_SHOW_PERCENT):
         propose_refund(
-            payment,
-            _share(payment, settings.REFUND_NO_SHOW_PERCENT),
-            f"No-show: {settings.REFUND_NO_SHOW_PERCENT}% refund under the cancellation rules.",
+            payment, amount, f"No-show: {settings.REFUND_NO_SHOW_PERCENT}% refund under the cancellation rules."
         )
 
 
