@@ -31,7 +31,7 @@ jobs:
     env:
       DATABASE_URL: postgres://guesthouse:guesthouse@localhost:5432/guesthouse
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
@@ -62,7 +62,7 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -82,7 +82,7 @@ jobs:
       matrix:
         service: [backend, frontend]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: docker build -t guesthouse-${{ matrix.service }}:ci ${{ matrix.service }}
       - name: Scan image with Trivy
         uses: aquasecurity/trivy-action@v0.36.0
