@@ -16,6 +16,8 @@ botocore==1.44.2
     # via
     #   boto3
     #   s3transfer
+brotli==1.2.1
+    # via fonttools
 cachecontrol==0.14.4
     # via pip-audit
 celery==5.7.0
@@ -23,7 +25,9 @@ celery==5.7.0
 certifi==2026.10.23
     # via requests
 cffi==2.1.1
-    # via cryptography
+    # via
+    #   cryptography
+    #   weasyprint
 charset-normalizer==3.5.2
     # via requests
 click==8.5.1
@@ -42,6 +46,8 @@ coverage==7.17.3
     # via pytest-cov
 cryptography==50.0.2
     # via mozilla-django-oidc
+cssselect2==0.10.1
+    # via weasyprint
 cyclonedx-python-lib==11.12.0
     # via pip-audit
 defusedxml==0.7.1
@@ -71,6 +77,8 @@ djangorestframework==3.18.3
     # via -r requirements.in
 filelock==4.2.10
     # via cachecontrol
+fonttools==4.68.0
+    # via weasyprint
 gunicorn==27.0.1
     # via -r requirements.in
 idna==3.20
@@ -102,7 +110,9 @@ packaging==26.3
     #   pip-requirements-parser
     #   pytest
 pillow==13.0.0
-    # via -r requirements.in
+    # via
+    #   -r requirements.in
+    #   weasyprint
 pip==26.3
     # via pip-api
 pip-api==0.0.35
@@ -127,6 +137,8 @@ py-serializable==2.2.0
     # via cyclonedx-python-lib
 pycparser==3.12
     # via cffi
+pydyf==0.13.0
+    # via weasyprint
 pygments==2.21.0
     # via
     #   pytest
@@ -135,6 +147,8 @@ pyjwt==2.15.1
     # via mozilla-django-oidc
 pyparsing==3.3.3
     # via pip-requirements-parser
+pyphen==0.18.1
+    # via weasyprint
 pytest==9.2.0
     # via
     #   -r requirements-dev.in
@@ -176,6 +190,12 @@ sqlparse==0.6.1
     # via django
 stevedore==5.10.0
     # via bandit
+tinycss2==1.5.1
+    # via
+    #   cssselect2
+    #   weasyprint
+tinyhtml5==2.1.0
+    # via weasyprint
 tomli==2.5.0
     # via pip-audit
 tomli-w==1.2.0
@@ -195,3 +215,12 @@ vine==5.1.0
     #   kombu
 wcwidth==0.9.4
     # via prompt-toolkit
+weasyprint==70.0
+    # via -r requirements.in
+webencodings==0.6.1
+    # via
+    #   cssselect2
+    #   tinycss2
+    #   tinyhtml5
+zopfli==0.4.3
+    # via fonttools

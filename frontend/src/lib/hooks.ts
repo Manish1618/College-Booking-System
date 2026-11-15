@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 import { api, ApiError } from "./api";
 import type { Me } from "./types";
@@ -30,4 +31,26 @@ export const isApprover = (me: Me | null | undefined) => me?.role === "APPROVER"
 export function useRefresh() {
   const client = useQueryClient();
   return () => client.invalidateQueries();
+}
+
+/** Runs a change, then refetches. Gives back the error message to show, if any. */
+export function useAction() {
+  const refresh = useRefresh();
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function run(action: () => Promise<unknown>) {
+    setError("");
+    setBusy(true);
+    try {
+      await action();
+      await refresh();
+      return true;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong.");
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+  return { run, error, setError, busy };
 }

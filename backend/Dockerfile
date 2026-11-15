@@ -7,9 +7,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PRIVATE_MEDIA_ROOT=/data/private \
     STATIC_ROOT=/data/static
 
-# Take Debian security fixes published after the base image was built.
+# Take Debian security fixes published after the base image was built, and add what WeasyPrint needs
+# to draw receipt and register PDFs: the Pango text libraries and one font.
 RUN apt-get update \
     && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends \
+        libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

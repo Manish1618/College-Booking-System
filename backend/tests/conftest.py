@@ -81,6 +81,20 @@ def admin(db):
 
 
 @pytest.fixture
+def clients(requester, external, approver, manager, admin):
+    return {
+        "anon": APIClient(),
+        "requester": client_for(requester),
+        "external": client_for(external),
+        "approver": client_for(approver),
+        "manager": client_for(manager),
+        "manager_no_mfa": client_for(make_user(Role.MANAGER, "mgr2"), mfa=False),
+        "admin": client_for(admin),
+        "admin_no_mfa": client_for(make_user(Role.ADMIN, "adm2"), mfa=False),
+    }
+
+
+@pytest.fixture
 def room_type(db):
     rt = RoomType.objects.create(name="Double", capacity=2, amenities=["Wi-Fi"])
     Tariff.objects.create(room_type=rt, price_per_night=1000, valid_from=date(2020, 1, 1))
@@ -158,5 +172,18 @@ def submitted_booking(client, room_type, stay, category="OFFICIAL"):
         )
         assert resp.status_code == 201, resp.data
     resp = client.post(f"/api/bookings/{booking['id']}/submit")
+    assert resp.status_code == 200, resp.data
+    return resp.data
+
+
+def pay(client, booking_id, outcome="paid"):
+    """Pays through the simulated gateway: open an order, then let the gateway send its signed webhook."""
+    resp = client.post(f"/api/bookings/{booking_id}/pay", {"gateway": "dev"}, format="json")
+    assert resp.status_code == 200, resp.data
+    resp = client.post(
+        "/api/payments/dev/complete",
+        {"order_id": resp.data["payment"]["order_id"], "outcome": outcome},
+        format="json",
+    )
     assert resp.status_code == 200, resp.data
     return resp.data

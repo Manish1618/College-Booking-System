@@ -1,8 +1,12 @@
+import logging
+
 from celery import shared_task
 from django.conf import settings
-from django.core.mail import send_mail
+from django.core.mail import EmailMessage, send_mail
 
 from .sms import send_sms
+
+logger = logging.getLogger(__name__)
 
 STATUS_MESSAGES = {
     "PENDING": "Your request was received and is waiting for approval. The dates are held for {hold} hours.",
@@ -13,7 +17,7 @@ STATUS_MESSAGES = {
     "ALLOTTED": "Room {room} has been allotted for your stay.",
     "CHECKED_IN": "You are checked in. Have a pleasant stay.",
     "CHECKED_OUT": "You are checked out. Thank you for staying with us.",
-    "CANCELLED": "Your booking was cancelled.",
+    "CANCELLED": "Your booking was cancelled. If a refund is due, a separate email says how much.",
     "EXPIRED": "Your booking request expired and the dates were released.",
     "NO_SHOW": "Your booking was marked as a no-show.",
 }
@@ -29,6 +33,18 @@ def send_otp(kind, identifier, code):
         send_mail(f"{settings.SITE_NAME} sign-in code", message, None, [identifier])
     else:
         send_sms(identifier, message)
+
+
+def _attach_receipt(message, booking):
+    """The receipt PDF goes out with the confirmation. A failure to build it must not stop the email."""
+    from apps.payments import receipts
+
+    try:
+        if receipts.has_receipt(booking):
+            message.attach(f"receipt-{booking.reference}.pdf", receipts.receipt_pdf(booking), "application/pdf")
+            message.body += "\nYour receipt is attached.\n"
+    except Exception:
+        logger.exception("Could not attach the receipt for booking %s", booking.reference)
 
 
 @shared_task
@@ -52,12 +68,15 @@ def notify_booking_status(booking_id, status, comment=""):
     body += f"\n{settings.SITE_URL}/bookings/{booking.pk}\n"
     user = booking.requester
     if user.email:
-        send_mail(
+        message = EmailMessage(
             f"{settings.SITE_NAME}: booking {booking.reference} – {status.replace('_', ' ').title()}",
             body,
             None,
             [user.email],
         )
+        if status == "CONFIRMED":
+            _attach_receipt(message, booking)
+        message.send()
     if user.phone and status in SMS_STATUSES:
         send_sms(user.phone, f"{settings.SITE_NAME} booking {booking.reference}: {text}")
     if status == "PENDING":

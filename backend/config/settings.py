@@ -176,8 +176,44 @@ PAYMENT_WINDOW_HOURS = env.int("PAYMENT_WINDOW_HOURS", default=24)  # APPROVED m
 BOOKING_MAX_NIGHTS = env.int("BOOKING_MAX_NIGHTS", default=14)
 BOOKING_MAX_ADVANCE_DAYS = env.int("BOOKING_MAX_ADVANCE_DAYS", default=180)
 NO_SHOW_HOUR = env.int("NO_SHOW_HOUR", default=12)  # noon the day after check-in
-# Payment gateways. "dev" simulates a successful payment and is only allowed when listed here.
-PAYMENT_GATEWAYS = env.list("PAYMENT_GATEWAYS", default=[])
+CHECK_IN_HOUR = env.int("CHECK_IN_HOUR", default=12)  # arrival time used by the refund rules
+
+# --- Payments ---------------------------------------------------------------
+# Gateways a guest may pay with, in the order shown: "razorpay", "mobikwik", and "dev".
+# "dev" simulates a gateway so the flow runs without keys. Anyone signed in can "pay" with it, so it is
+# refused outside DEBUG unless ALLOW_SIMULATED_PAYMENTS says a demo server really wants it.
+PAYMENT_GATEWAYS = env.list("PAYMENT_GATEWAYS", default=["dev"] if DEBUG else [])
+if "dev" in PAYMENT_GATEWAYS and not DEBUG and not env.bool("ALLOW_SIMULATED_PAYMENTS", default=False):
+    raise ImproperlyConfigured(
+        'PAYMENT_GATEWAYS lists "dev", which confirms bookings without taking money. Remove it, or set '
+        "ALLOW_SIMULATED_PAYMENTS=true on a demo server."
+    )
+RAZORPAY_KEY_ID = env("RAZORPAY_KEY_ID", default="")
+RAZORPAY_KEY_SECRET = env("RAZORPAY_KEY_SECRET", default="")
+RAZORPAY_WEBHOOK_SECRET = env("RAZORPAY_WEBHOOK_SECRET", default="")
+# MobiKwik's payment gateway is Zaakpay. Use https://zaakstaging.zaakpay.com while testing.
+MOBIKWIK_BASE_URL = env("MOBIKWIK_BASE_URL", default="https://api.zaakpay.com").rstrip("/")
+MOBIKWIK_MERCHANT_ID = env("MOBIKWIK_MERCHANT_ID", default="")
+MOBIKWIK_SECRET_KEY = env("MOBIKWIK_SECRET_KEY", default="")
+# The gateway insists on a buyer email; guests who sign in by phone have none.
+MOBIKWIK_FALLBACK_EMAIL = env("MOBIKWIK_FALLBACK_EMAIL", default="guesthouse@college.example.edu")
+_gateway_keys = {
+    "razorpay": ["RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET", "RAZORPAY_WEBHOOK_SECRET"],
+    "mobikwik": ["MOBIKWIK_MERCHANT_ID", "MOBIKWIK_SECRET_KEY"],
+}
+for _gateway, _names in _gateway_keys.items():
+    _missing = [name for name in _names if not globals()[name]]
+    if _gateway in PAYMENT_GATEWAYS and _missing:
+        raise ImproperlyConfigured(f"PAYMENT_GATEWAYS lists {_gateway}, so set {', '.join(_missing)}.")
+PAYMENT_RECONCILE_DAYS = env.int("PAYMENT_RECONCILE_DAYS", default=2)  # how long an unpaid order is re-checked
+
+# Refund rules (an open question in the PRD). A guest who cancels at least REFUND_FULL_HOURS before
+# arrival gets everything back, at least REFUND_PARTIAL_HOURS before gets REFUND_PARTIAL_PERCENT, and
+# later gets nothing. A cancellation by the guesthouse can refund in full. Managers issue every refund.
+REFUND_FULL_HOURS = env.int("REFUND_FULL_HOURS", default=48)
+REFUND_PARTIAL_HOURS = env.int("REFUND_PARTIAL_HOURS", default=24)
+REFUND_PARTIAL_PERCENT = env.int("REFUND_PARTIAL_PERCENT", default=50)
+REFUND_NO_SHOW_PERCENT = env.int("REFUND_NO_SHOW_PERCENT", default=0)
 
 # --- Files -----------------------------------------------------------------
 UPLOAD_MAX_BYTES = env.int("UPLOAD_MAX_BYTES", default=5 * 1024 * 1024)
@@ -247,6 +283,8 @@ CELERY_TIMEZONE = "Asia/Kolkata"
 CELERY_BEAT_SCHEDULE = {
     "expire-stale-bookings": {"task": "apps.bookings.tasks.expire_stale_bookings", "schedule": crontab(minute="*/10")},
     "mark-no-shows": {"task": "apps.bookings.tasks.mark_no_shows", "schedule": crontab(minute=5)},
+    "reconcile-payments": {"task": "apps.payments.tasks.reconcile", "schedule": crontab(minute="*/15")},
+    "verify-recent-payments": {"task": "apps.payments.tasks.verify_recent", "schedule": crontab(hour=2, minute=30)},
 }
 
 LANGUAGE_CODE = "en-in"

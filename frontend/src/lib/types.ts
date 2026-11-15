@@ -65,6 +65,8 @@ export interface Guest {
   id_type?: string;
   has_id_document?: boolean;
   id_document?: string | null;
+  id_verified?: boolean;
+  in_register?: boolean;
 }
 
 export interface StudentLink {
@@ -109,7 +111,97 @@ export interface Booking {
   student_link: StudentLink | null;
   documents: BookingDocument[];
   approvals: { id: string; decision: string; comment: string; approver_name: string; decided_at: string }[];
-  actions: { edit: boolean; submit: boolean; cancel: boolean; decide: boolean; pay: boolean; allot: boolean };
+  /** Money in and out. Only the booking's owner and the desk receive it. */
+  payment: PaymentSummary | null;
+  actions: {
+    edit: boolean;
+    submit: boolean;
+    cancel: boolean;
+    decide: boolean;
+    pay: boolean;
+    allot: boolean;
+    check_in: boolean;
+    check_out: boolean;
+    refund: boolean;
+    receipt: boolean;
+  };
+}
+
+export interface Payment {
+  id: string;
+  gateway: string;
+  gateway_label: string;
+  order_id: string;
+  gateway_payment_id: string;
+  amount: string;
+  status: "CREATED" | "PAID" | "FAILED" | "REFUNDED";
+  refunded_amount: string;
+  failure_reason: string;
+  paid_at: string | null;
+  created_at: string;
+}
+
+export interface Refund {
+  id: string;
+  booking: string;
+  reference: string;
+  requester_name: string;
+  gateway_label: string;
+  amount: string;
+  /** The most the amount can be changed to before it is issued. Null once issued. */
+  limit: string | null;
+  status: "DUE" | "PROCESSING" | "PROCESSED" | "FAILED";
+  status_label: string;
+  reason: string;
+  manual: boolean;
+  note: string;
+  failure_reason: string;
+  created_at: string;
+  processed_at: string | null;
+}
+
+export interface PaymentSummary {
+  paid: string;
+  refunded: string;
+  payments: Payment[];
+  refunds: Refund[];
+  refundable: string;
+  refund_on_cancel: { percent: number; amount: string; full: string } | null;
+  /** An order is open with a gateway and its outcome is not known yet. */
+  pending: boolean;
+  receipt: boolean;
+}
+
+/** What the browser needs to pay an order. The shape depends on the gateway. */
+export type Checkout =
+  | { mode: "dev"; order_id: string }
+  | { mode: "razorpay"; script: string; options: Record<string, unknown> }
+  | { mode: "redirect"; action: string; fields: Record<string, string> };
+
+export interface DeskDay {
+  date: string;
+  arrivals: Booking[];
+  departures: Booking[];
+  in_house: Booking[];
+  to_allot: number;
+  refunds_due: number;
+}
+
+export interface RegisterEntry {
+  id: string;
+  serial_number: number;
+  booking: string;
+  booking_reference: string;
+  guest_name: string;
+  guest_phone: string;
+  guest_address: string;
+  id_type: string;
+  room_number: string;
+  arrival_at: string;
+  departure_at: string | null;
+  purpose: string;
+  amount_paid: string;
+  entered_by_name: string;
 }
 
 export interface Page<T> {

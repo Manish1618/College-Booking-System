@@ -62,7 +62,7 @@ export async function api<T = unknown>(path: string, options: { method?: string;
   return data as T;
 }
 
-/** Every page of a paginated list, for short lists that feed a selector. Long lists are paged on screen. */
+/** Every page of a paginated list, for lists that must be shown whole: a selector, or the desk's work queue. */
 export async function apiAll<T>(path: string): Promise<T[]> {
   const items: T[] = [];
   for (let page = 1; ; page++) {
@@ -78,6 +78,12 @@ export const inr = (amount: string | number | null | undefined) =>
     : new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(
         Number(amount),
       );
+
+/** Rupees with paise, for money that has actually moved (payments and refunds). */
+export const inrExact = (amount: string | number) =>
+  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 2 }).format(
+    Number(amount),
+  );
 
 export const fmtDate = (iso: string) =>
   new Date(iso + (iso.length === 10 ? "T00:00:00" : "")).toLocaleDateString("en-IN", {
