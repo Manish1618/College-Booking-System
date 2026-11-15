@@ -4,9 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 
 import { Card, Loading, Notice, PageTitle, StatusBadge } from "@/components/ui";
-import { api, fmtDate, inrExact } from "@/lib/api";
+import { api, apiAll, fmtDate, inrExact } from "@/lib/api";
 import { isManager, useMe } from "@/lib/hooks";
-import type { Booking, DeskDay, Page, Refund } from "@/lib/types";
+import type { Booking, DeskDay, Refund } from "@/lib/types";
 
 const linkClass = "font-medium text-brand-700 underline";
 
@@ -17,7 +17,8 @@ export default function DeskPage() {
   const desk = useQuery({ queryKey: ["desk"], queryFn: () => api<DeskDay>("/desk"), enabled: allowed });
   const refunds = useQuery({
     queryKey: ["refunds", "open"],
-    queryFn: () => api<Page<Refund>>("/refunds?status=DUE,FAILED"),
+    // Every page: a refund that is owed must not drop off the list because newer ones were added.
+    queryFn: () => apiAll<Refund>("/refunds?status=DUE,FAILED"),
     enabled: allowed,
   });
 
@@ -68,10 +69,14 @@ export default function DeskPage() {
       />
 
       <section>
-        <h2 className="mb-3 text-lg font-semibold">Refunds to send</h2>
-        {refunds.data?.results.length === 0 && <p className="text-sm text-slate-600">No refunds are waiting.</p>}
+        <h2 className="mb-3 text-lg font-semibold">
+          Refunds to send{" "}
+          {refunds.data && <span className="font-normal text-slate-500">({refunds.data.length})</span>}
+        </h2>
+        {refunds.error && <Notice tone="error">Could not load the refunds. Reload the page to try again.</Notice>}
+        {refunds.data?.length === 0 && <p className="text-sm text-slate-600">No refunds are waiting.</p>}
         <ul className="space-y-3">
-          {refunds.data?.results.map((refund) => (
+          {refunds.data?.map((refund) => (
             <li key={refund.id}>
               <Link href={`/bookings/${refund.booking}`} className="block rounded-lg hover:ring-2 hover:ring-brand-100">
                 <Card className="flex flex-wrap items-center justify-between gap-3">

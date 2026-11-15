@@ -62,7 +62,7 @@ export async function api<T = unknown>(path: string, options: { method?: string;
   return data as T;
 }
 
-/** Every page of a paginated list, for short lists that feed a selector. Long lists are paged on screen. */
+/** Every page of a paginated list, for lists that must be shown whole: a selector, or the desk's work queue. */
 export async function apiAll<T>(path: string): Promise<T[]> {
   const items: T[] = [];
   for (let page = 1; ; page++) {

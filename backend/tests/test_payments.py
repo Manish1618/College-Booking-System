@@ -536,6 +536,33 @@ def test_late_cancellation_refunds_nothing_and_the_desk_can_refund_in_full(
     )
 
 
+def test_refund_queue_is_oldest_first_and_every_page_is_reachable(manager, paid):
+    payment = paid.payments.get()
+    now = timezone.now()
+    Refund.objects.bulk_create(
+        Refund(
+            payment=payment,
+            amount=Decimal("10.00"),
+            reason=f"Refund {n:02d}",
+            status=Refund.State.FAILED if n % 2 else Refund.State.DUE,
+        )
+        for n in range(53)
+    )
+    # Created in one statement, so give each its own time, oldest first by number.
+    for refund in Refund.objects.all():
+        Refund.objects.filter(pk=refund.pk).update(created_at=now - timedelta(minutes=100 - int(refund.reason[-2:])))
+    Refund.objects.create(payment=payment, amount=Decimal("10.00"), reason="Sent", status=Refund.State.PROCESSED)
+
+    desk = client_for(manager)
+    first = desk.get("/api/refunds?status=DUE,FAILED").data
+    assert first["count"] == 53 and len(first["results"]) == 50 and first["next"]
+    second = desk.get("/api/refunds?status=DUE,FAILED&page=2").data
+    assert second["next"] is None
+    reasons = [r["reason"] for r in first["results"] + second["results"]]
+    assert reasons == [f"Refund {n:02d}" for n in range(53)]
+    assert desk.get("/api/desk").data["refunds_due"] == 53
+
+
 def test_manager_issues_a_refund_through_the_gateway(clients, requester, paid):
     clients["requester"].post(f"/api/bookings/{paid.pk}/cancel")
     refund = Refund.objects.get()

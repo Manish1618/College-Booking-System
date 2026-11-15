@@ -185,7 +185,8 @@ class RefundViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
         refunds = Refund.objects.select_related("payment__booking__requester").prefetch_related("payment__refunds")
         if statuses := self.request.query_params.get("status"):
             refunds = refunds.filter(status__in=statuses.split(","))
-        return refunds.order_by("-created_at")
+        # A work queue: the refund that has waited longest comes first. The key makes the pages stable.
+        return refunds.order_by("created_at", "pk")
 
     def _read(self, refund):
         return Response(RefundSerializer(self.get_queryset().get(pk=refund.pk)).data)
