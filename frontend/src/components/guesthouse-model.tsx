@@ -9,7 +9,7 @@
 
 import { ContactShadows, Sparkles } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
 
 const GOLD = "#d4af37";
@@ -199,10 +199,40 @@ function House({ animate }: { animate: boolean }) {
   );
 }
 
+/** Keeps a WebGL failure inside the hero: the page around it (dates, rooms) must stay usable. */
+class ModelBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
+
+function hasWebGL() {
+  try {
+    const canvas = document.createElement("canvas");
+    return !!(canvas.getContext("webgl2") ?? canvas.getContext("webgl"));
+  } catch {
+    return false;
+  }
+}
+
+/** Shown when the browser cannot draw 3D: a quiet gold glow instead of the model. */
+function StillFallback() {
+  return (
+    <div className="grid size-full place-items-center">
+      <div className="size-48 rounded-full border border-gold/30 bg-[radial-gradient(circle_at_40%_35%,rgb(212_175_55/0.35),transparent_65%)] shadow-[0_0_80px_-10px_rgb(212_175_55/0.4)]" />
+    </div>
+  );
+}
+
 export default function GuesthouseModel({ className }: { className?: string }) {
   const host = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(true);
   const [reduced, setReduced] = useState(false);
+  const [webgl] = useState(hasWebGL);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -220,32 +250,38 @@ export default function GuesthouseModel({ className }: { className?: string }) {
 
   return (
     <div ref={host} className={className} role="img" aria-label="3D model of the college guesthouse at night">
-      <Canvas
-        shadows
-        dpr={[1, 2]}
-        frameloop={visible ? (reduced ? "demand" : "always") : "never"}
-        camera={{ position: [0, 5.2, 14.5], fov: 34 }}
-        gl={{ antialias: true, alpha: true }}
-      >
-        <ambientLight intensity={0.35} />
-        <hemisphereLight args={["#c9d6ff", "#2a1f0f", 0.45]} />
-        <directionalLight
-          castShadow
-          position={[5, 8, 4]}
-          intensity={1.4}
-          color="#ffe9b8"
-          shadow-mapSize-width={1024}
-          shadow-mapSize-height={1024}
-          shadow-camera-left={-6}
-          shadow-camera-right={6}
-          shadow-camera-top={6}
-          shadow-camera-bottom={-6}
-        />
-        <directionalLight position={[-6, 3, -4]} intensity={0.5} color="#8aa0ff" />
-        <House animate={!reduced} />
-        <ContactShadows position={[0, -1.3, 0]} opacity={0.6} scale={14} blur={2.6} far={3} />
-        {!reduced && <Sparkles count={40} scale={[9, 4, 6]} position={[0, 1.2, 0]} size={2.2} speed={0.25} color={GOLD} opacity={0.7} />}
-      </Canvas>
+      {!webgl ? (
+        <StillFallback />
+      ) : (
+        <ModelBoundary fallback={<StillFallback />}>
+          <Canvas
+            shadows
+            dpr={[1, 2]}
+            frameloop={visible ? (reduced ? "demand" : "always") : "never"}
+            camera={{ position: [0, 5.2, 14.5], fov: 34 }}
+            gl={{ antialias: true, alpha: true }}
+          >
+            <ambientLight intensity={0.35} />
+            <hemisphereLight args={["#c9d6ff", "#2a1f0f", 0.45]} />
+            <directionalLight
+              castShadow
+              position={[5, 8, 4]}
+              intensity={1.4}
+              color="#ffe9b8"
+              shadow-mapSize-width={1024}
+              shadow-mapSize-height={1024}
+              shadow-camera-left={-6}
+              shadow-camera-right={6}
+              shadow-camera-top={6}
+              shadow-camera-bottom={-6}
+            />
+            <directionalLight position={[-6, 3, -4]} intensity={0.5} color="#8aa0ff" />
+            <House animate={!reduced} />
+            <ContactShadows position={[0, -1.3, 0]} opacity={0.6} scale={14} blur={2.6} far={3} />
+            {!reduced && <Sparkles count={40} scale={[9, 4, 6]} position={[0, 1.2, 0]} size={2.2} speed={0.25} color={GOLD} opacity={0.7} />}
+          </Canvas>
+        </ModelBoundary>
+      )}
     </div>
   );
 }
