@@ -177,6 +177,10 @@ BOOKING_MAX_NIGHTS = env.int("BOOKING_MAX_NIGHTS", default=14)
 BOOKING_MAX_ADVANCE_DAYS = env.int("BOOKING_MAX_ADVANCE_DAYS", default=180)
 NO_SHOW_HOUR = env.int("NO_SHOW_HOUR", default=12)  # noon the day after check-in
 CHECK_IN_HOUR = env.int("CHECK_IN_HOUR", default=12)  # arrival time used by the refund rules
+# A guest can change the dates of a paid booking online until this many hours before arrival. It matches
+# the full-refund window, so moving a stay is never a way round the cancellation rules. The desk can
+# change dates for a guest at any time before check-in.
+DATE_CHANGE_MIN_HOURS = env.int("DATE_CHANGE_MIN_HOURS", default=48)
 
 # --- Payments ---------------------------------------------------------------
 # Gateways a guest may pay with, in the order shown: "razorpay", "mobikwik", and "dev".

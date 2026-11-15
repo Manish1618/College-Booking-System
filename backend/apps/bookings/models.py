@@ -169,6 +169,70 @@ class ApprovalRule(models.Model):
         constraints = [models.UniqueConstraint(fields=["category", "approver"], name="one_rule_per_category_approver")]
 
 
+class DateChange(models.Model):
+    """New dates asked for on a booking that is already paid.
+
+    The booking itself is left alone until the change is approved (and any balance is paid), so a guest
+    never loses a confirmed stay by asking. While the change is open, the new dates are held as well.
+    """
+
+    class State(models.TextChoices):
+        PENDING = "PENDING", "Waiting for approval"
+        AWAITING_PAYMENT = "AWAITING_PAYMENT", "Approved, balance to pay"
+        APPLIED = "APPLIED", "Applied"
+        REJECTED = "REJECTED", "Not approved"
+        WITHDRAWN = "WITHDRAWN", "Withdrawn"
+        EXPIRED = "EXPIRED", "Expired"
+
+    OPEN = [State.PENDING, State.AWAITING_PAYMENT]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name="date_changes")
+    check_in = models.DateField()
+    check_out = models.DateField()
+    price_per_night = models.DecimalField(max_digits=10, decimal_places=2)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    # What the booking was when the change was asked for, kept for the record.
+    old_check_in = models.DateField()
+    old_check_out = models.DateField()
+    old_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    status = models.CharField(max_length=16, choices=State.choices, default=State.PENDING)
+    # Approval deadline while PENDING, payment deadline while AWAITING_PAYMENT.
+    expires_at = models.DateTimeField()
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    requested_at = models.DateTimeField(auto_now_add=True)
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+    comment = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["requested_at"]
+        constraints = [
+            models.CheckConstraint(condition=Q(check_out__gt=F("check_in")), name="change_check_out_after_check_in"),
+            models.UniqueConstraint(
+                fields=["booking"],
+                condition=Q(status__in=["PENDING", "AWAITING_PAYMENT"]),
+                name="one_open_date_change_per_booking",
+            ),
+        ]
+
+    @property
+    def nights(self):
+        return (self.check_out - self.check_in).days
+
+    @property
+    def balance(self):
+        """What the guest still has to pay for the new dates. Zero when the stay costs the same or less."""
+        return max(self.amount - self.old_amount, 0)
+
+    @property
+    def refund(self):
+        """What goes back to the guest when the new dates cost less."""
+        return max(self.old_amount - self.amount, 0)
+
+
 class RegisterEntry(models.Model):
     """The guest register. Entries are created at check-in (Phase 3)."""
 

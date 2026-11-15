@@ -1,10 +1,11 @@
 import uuid
 
 from django.conf import settings
-from django.contrib.postgres.fields import ArrayField
+from django.contrib.postgres.constraints import ExclusionConstraint
+from django.contrib.postgres.fields import ArrayField, RangeOperators
 from django.core.validators import MinValueValidator
 from django.db import models
-from django.db.models import Q
+from django.db.models import F, Func, Q, Value
 
 
 class RoomType(models.Model):
@@ -53,6 +54,38 @@ class Room(models.Model):
 
     def __str__(self):
         return self.number
+
+
+class RoomBlock(models.Model):
+    """A room taken out of service for some nights: repairs, deep cleaning, an inspection.
+
+    Dates work like a stay's: starts_on is the first night the room cannot be used, and ends_on is the
+    day it is back, so the night before ends_on is the last one blocked.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    room = models.ForeignKey(Room, on_delete=models.PROTECT, related_name="blocks")
+    starts_on = models.DateField()
+    ends_on = models.DateField()
+    reason = models.CharField(max_length=200)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["starts_on", "room__number"]
+        constraints = [
+            models.CheckConstraint(condition=Q(ends_on__gt=F("starts_on")), name="block_ends_after_it_starts"),
+            ExclusionConstraint(
+                name="no_overlapping_blocks",
+                expressions=[
+                    ("room", RangeOperators.EQUAL),
+                    (Func(F("starts_on"), F("ends_on"), Value("[)"), function="daterange"), RangeOperators.OVERLAPS),
+                ],
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.room} {self.starts_on} to {self.ends_on}"
 
 
 class RoomPhoto(models.Model):

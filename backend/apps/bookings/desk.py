@@ -15,6 +15,7 @@ from rest_framework.views import APIView
 
 from apps.accounts.permissions import IsManager
 from apps.audit import services as audit
+from apps.rooms.models import RoomBlock
 from config.pdf import pdf_response, render_pdf
 
 from .models import RegisterEntry, Status
@@ -29,6 +30,7 @@ class DeskView(APIView):
     def get(self, request):
         from apps.payments.models import Refund  # payments builds on bookings
 
+        from .maintenance import RoomBlockSerializer
         from .views import visible_bookings
 
         today = timezone.localdate()
@@ -48,6 +50,12 @@ class DeskView(APIView):
                     for name, group in groups.items()
                 },
                 "to_allot": bookings.filter(status=Status.CONFIRMED).count(),
+                "out_of_service": RoomBlockSerializer(
+                    RoomBlock.objects.filter(starts_on__lte=today, ends_on__gt=today).select_related(
+                        "room__room_type", "created_by"
+                    ),
+                    many=True,
+                ).data,
                 "refunds_due": Refund.objects.filter(status__in=[Refund.State.DUE, Refund.State.FAILED]).count(),
             }
         )

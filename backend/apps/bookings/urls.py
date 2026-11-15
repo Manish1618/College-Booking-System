@@ -2,11 +2,13 @@ from django.urls import path, re_path
 from rest_framework.routers import SimpleRouter
 
 from .desk import DeskView, RegisterExportView, RegisterView
+from .maintenance import RoomBlockViewSet
 from .views import ApprovalRuleViewSet, AvailabilityView, BookingViewSet, DocumentDownloadView
 
 router = SimpleRouter(trailing_slash=False)
 router.register("bookings", BookingViewSet, basename="booking")
 router.register("approval-rules", ApprovalRuleViewSet, basename="approval-rule")
+router.register("room-blocks", RoomBlockViewSet, basename="room-block")
 urlpatterns = router.urls + [
     path("availability", AvailabilityView.as_view()),
     path("documents/<uuid:pk>/download", DocumentDownloadView.as_view()),

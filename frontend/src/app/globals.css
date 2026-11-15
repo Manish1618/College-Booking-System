@@ -37,6 +37,8 @@
   --color-chart-3: #0f8585;
   --color-chart-4: #0b5f5f;
   --color-chart-5: #083838;
+  /* Chart marks: the brand's hue with enough colour to read as teal, not grey, at small sizes. */
+  --color-chart: #009090;
   --color-gold: #d4af37;
   --color-gold-soft: #f1dfa4;
 
@@ -71,6 +73,7 @@
     --color-chart-3: #d4af37;
     --color-chart-4: #e6c766;
     --color-chart-5: #f6e3a1;
+    --color-chart: #d4af37;
     color-scheme: dark;
   }
 

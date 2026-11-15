@@ -89,3 +89,65 @@ def notify_booking_status(booking_id, status, comment=""):
                 None,
                 emails,
             )
+
+
+CHANGE_MESSAGES = {
+    "requested": (
+        "You asked to move this booking to {new}. The request is waiting for approval. "
+        "Until it is approved, your booking stays as it is: {old}."
+    ),
+    "resubmitted": "{note} The request is waiting for approval again, and the new dates are held for {hold} hours.",
+    "awaiting_payment": (
+        "Your change of dates to {new} was approved. The new stay costs Rs {balance} more. Pay that within "
+        "{pay} hours to move the booking. Until then your booking stays as it is: {old}."
+    ),
+    "applied": "Your booking has moved to {new}. {note}",
+    "rejected": "Your request to move this booking to {new} was not approved. Your booking stays as it was: {old}.",
+    "expired": "Your request to move this booking to {new} has lapsed. {note} Your booking stays as it was: {old}.",
+}
+
+
+@shared_task
+def notify_date_change(booking_id, event, change_id=None, note=""):
+    """Email about a change of dates: asked for, approved, applied, refused or lapsed."""
+    from apps.bookings.models import Booking, DateChange
+    from apps.bookings.routing import approvers_for
+
+    booking = Booking.objects.select_related("requester", "room_type").get(pk=booking_id)
+    change = DateChange.objects.filter(pk=change_id).first() if change_id else None
+    span = lambda start, end: f"{start:%d %b %Y} to {end:%d %b %Y}"  # noqa: E731
+    text = (
+        CHANGE_MESSAGES[event]
+        .format(
+            new=span(change.check_in, change.check_out) if change else "",
+            old=span(change.old_check_in, change.old_check_out) if change else "",
+            balance=change.balance if change else "",
+            hold=settings.BOOKING_HOLD_HOURS,
+            pay=settings.PAYMENT_WINDOW_HOURS,
+            note=note,
+        )
+        .strip()
+    )
+    if event == "applied" and change and change.refund > 0:
+        text += f" The new stay costs Rs {change.refund} less; a separate email says when that is refunded."
+    body = f"Booking {booking.reference}\n{booking.room_type.name}\n\n{text}\n"
+    if change and change.comment and event in ("rejected", "awaiting_payment"):
+        body += f"\nComment: {change.comment}\n"
+    body += f"\n{settings.SITE_URL}/bookings/{booking.pk}\n"
+    if booking.requester.email:
+        send_mail(
+            f"{settings.SITE_NAME}: booking {booking.reference} – change of dates",
+            body,
+            None,
+            [booking.requester.email],
+        )
+    if event in ("requested", "resubmitted"):
+        emails = [a.email for a in approvers_for(booking) if a.email]
+        if emails:
+            send_mail(
+                f"{settings.SITE_NAME}: booking {booking.reference} needs your decision",
+                f"A change of dates on a {booking.get_category_display().lower()} request is waiting for you.\n\n"
+                f"{settings.SITE_URL}/bookings/{booking.pk}\n",
+                None,
+                emails,
+            )

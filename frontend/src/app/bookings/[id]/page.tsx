@@ -10,6 +10,7 @@ import { api, fmtDate, fmtDateTime, inr, inrExact } from "@/lib/api";
 import { isManager, useMe, useRefresh } from "@/lib/hooks";
 import { ID_TYPES, type Booking, type Room } from "@/lib/types";
 
+import { ChangeDatesPanel, ChangeDecisionPanel, ChangeNotice } from "./date-change-panels";
 import { CancelPanel, CheckInPanel, CheckOutPanel, PayPanel, PaymentCard } from "./money-panels";
 
 const DECISIONS = { APPROVED: "Approved", REJECTED: "Rejected", SENT_BACK: "Sent back" } as Record<string, string>;
@@ -61,6 +62,7 @@ export default function BookingPage() {
       {error && <Notice tone="error">{error}</Notice>}
       <NextStep booking={b} />
 
+      {b.actions.decide_change ? <ChangeDecisionPanel booking={b} /> : <ChangeNotice booking={b} />}
       {b.actions.decide && <DecisionPanel busy={busy} onDecide={(body) => act("decide", body)} />}
       {b.actions.allot && <AllotPanel booking={b} busy={busy} onAllot={(room) => act("allot", { room })} />}
       {b.actions.pay && <PayPanel booking={b} justReturned={params.get("returned") === "1"} />}
@@ -195,6 +197,9 @@ export default function BookingPage() {
 
       <PaymentCard booking={b} />
 
+      {b.actions.change_dates && (
+        <ChangeDatesPanel key={`${b.check_in}:${b.check_out}`} booking={b} staff={isManager(me)} />
+      )}
       {b.actions.cancel && <CancelPanel booking={b} staff={isManager(me)} />}
       <p>
         <Link href="/bookings" className="text-sm text-brand-700 hover:underline">

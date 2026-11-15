@@ -20,6 +20,7 @@ export function Header() {
     { href: "/bookings?view=desk", label: "All bookings", show: isManager(me) },
     { href: "/register", label: "Register", show: isManager(me) },
     { href: "/manage", label: "Rooms", show: isManager(me) },
+    { href: "/reports", label: "Reports", show: isManager(me) },
     { href: "/admin", label: "Admin", show: isAdmin(me) },
   ].filter((link) => link.show);
 

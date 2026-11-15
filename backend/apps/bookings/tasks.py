@@ -1,11 +1,12 @@
 from celery import shared_task
 
-from . import services
+from . import changes, services
 
 
 @shared_task
 def expire_stale_bookings():
-    return services.expire_stale()
+    """Lapsed holds release their dates, and lapsed changes of dates release the dates they asked for."""
+    return services.expire_stale() + changes.expire_stale()
 
 
 @shared_task
