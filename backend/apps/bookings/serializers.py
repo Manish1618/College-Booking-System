@@ -14,14 +14,22 @@ from .state import TRANSITIONS
 class GuestSerializer(serializers.ModelSerializer):
     id = serializers.UUIDField(required=False)
     has_id_document = serializers.SerializerMethodField()
+    in_register = serializers.SerializerMethodField()
 
     class Meta:
         model = Guest
-        fields = ["id", "name", "phone", "address", "id_type", "id_document", "has_id_document", "id_verified"]
+        fields = [
+            "id", "name", "phone", "address", "id_type", "id_document", "has_id_document", "id_verified",
+            "in_register",
+        ]  # fmt: skip
         read_only_fields = ["id_document", "id_verified"]
 
     def get_has_id_document(self, guest):
         return guest.id_document_id is not None
+
+    def get_in_register(self, guest):
+        """True once this guest has been checked in. Guests on one booking can arrive at different times."""
+        return bool(guest.register_entries.all())
 
 
 class StudentLinkSerializer(serializers.ModelSerializer):
@@ -109,6 +117,13 @@ class BookingSerializer(serializers.ModelSerializer):
         # Money is between the guest and the desk. Approvers see neither payments nor refunds.
         return payment_summary(booking, staff=manager) if owner or manager else None
 
+    @staticmethod
+    def _can_check_in(booking):
+        if booking.status == Status.CHECKED_IN:
+            # Someone on the booking has not arrived yet.
+            return any(not guest.register_entries.all() for guest in booking.guests.all())
+        return booking.status == Status.ALLOTTED
+
     def get_actions(self, booking):
         request, owner, manager = self._viewer(booking)
         allowed = TRANSITIONS[booking.status]
@@ -123,7 +138,7 @@ class BookingSerializer(serializers.ModelSerializer):
             and (request.user.role == "APPROVER" or manager),
             "pay": owner and booking.status == Status.APPROVED,
             "allot": manager and Status.ALLOTTED in allowed,
-            "check_in": manager and booking.status == Status.ALLOTTED and booking.check_in <= today < booking.check_out,
+            "check_in": manager and booking.check_in <= today < booking.check_out and self._can_check_in(booking),
             "check_out": manager and booking.status == Status.CHECKED_IN,
             "refund": manager and took_money,
             "receipt": (owner or manager) and took_money,

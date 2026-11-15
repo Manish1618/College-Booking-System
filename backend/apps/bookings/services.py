@@ -200,12 +200,16 @@ REGISTER_LOCK = 0x47485247  # advisory lock key ("GHRG"): one writer of register
 @transaction.atomic
 def check_in(booking_id, manager, guest_ids):
     """Checks in the guests whose ID the desk has compared with the uploaded copy, and enters them
-    in the guest register. guest_ids are the guests who arrived; at least one is needed."""
+    in the guest register. guest_ids are the guests who arrived; at least one is needed.
+
+    Guests on one booking need not arrive together: calling this again adds the later arrivals.
+    """
     from apps.payments import services as payments
 
     booking = locked(booking_id)
-    if booking.status != Status.ALLOTTED:
+    if booking.status not in (Status.ALLOTTED, Status.CHECKED_IN):
         raise Conflict("Only a booking with an allotted room can be checked in.")
+    first_arrival = booking.status == Status.ALLOTTED
     today = timezone.localdate()
     if today < booking.check_in:
         raise Conflict(f"This stay starts on {booking.check_in:%d %b %Y}. It cannot be checked in earlier.")
@@ -217,7 +221,10 @@ def check_in(booking_id, manager, guest_ids):
         raise ValidationError({"guests": ["Tick each arriving guest once their ID has been checked."]})
     if any(guest.id_document is None for guest in guests):
         raise ValidationError({"guests": ["A guest has no uploaded ID copy to check against."]})
-    booking = transition(booking, Status.CHECKED_IN, actor=manager)
+    if RegisterEntry.objects.filter(booking=booking, guest__in=guests).exists():
+        raise Conflict("A guest you ticked is already checked in.")
+    if first_arrival:
+        booking = transition(booking, Status.CHECKED_IN, actor=manager)
 
     now = timezone.now()
     with connection.cursor() as cursor:
@@ -237,7 +244,7 @@ def check_in(booking_id, manager, guest_ids):
             arrival_at=now,
             purpose=booking.purpose,
             # The booking's payment is written once, against its first guest, so the column adds up.
-            amount_paid=paid if index == 0 else 0,
+            amount_paid=paid if first_arrival and index == 0 else 0,
             entered_by=manager,
         )
     audit.log(

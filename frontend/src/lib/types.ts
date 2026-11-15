@@ -66,6 +66,7 @@ export interface Guest {
   has_id_document?: boolean;
   id_document?: string | null;
   id_verified?: boolean;
+  in_register?: boolean;
 }
 
 export interface StudentLink {

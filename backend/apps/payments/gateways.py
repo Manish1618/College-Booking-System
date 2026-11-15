@@ -52,7 +52,7 @@ class Event:
     order_id: str = ""
     payment_id: str = ""
     amount: Decimal | None = None
-    refund_ref: str = ""  # our Refund id, echoed back by the gateway
+    refund_ref: str = ""  # our reference for one refund attempt, echoed back by the gateway
     refund_id: str = ""  # the gateway's refund id
     reason: str = ""
 
@@ -77,6 +77,9 @@ class Gateway:
     name = ""
     # False when the gateway refuses a second attempt on the same order id.
     reuse_orders = True
+    # True when the guest can try again inside the same order after an attempt fails. A failed attempt
+    # then says nothing final about the order, which must stay open and keep being looked up.
+    retries_within_order = False
 
     def create_order(self, payment, booking):
         """Opens an order for payment.amount and returns the id to store as Payment.order_id."""
@@ -185,6 +188,7 @@ class RazorpayGateway(Gateway):
 
     name = "razorpay"
     api = "https://api.razorpay.com/v1"
+    retries_within_order = True
 
     def _call(self, method, path, payload=None):
         status, data = self._request(
@@ -278,8 +282,8 @@ class RazorpayGateway(Gateway):
         result = self._call(
             "POST",
             f"/payments/{payment.gateway_payment_id}/refund",
-            # The note lets a webhook or a later lookup find our refund even if this answer is lost.
-            {"amount": to_paise(refund.amount), "notes": {"refund": str(refund.pk)}},
+            # The note lets a webhook or a later lookup find this attempt even if this answer is lost.
+            {"amount": to_paise(refund.amount), "notes": {"refund": refund.reference}},
         )
         return result["id"], self._refund_state(result)
 
@@ -287,7 +291,7 @@ class RazorpayGateway(Gateway):
         if refund.gateway_refund_id:
             return self._refund_state(self._call("GET", f"/refunds/{refund.gateway_refund_id}"))
         for item in self._call("GET", f"/payments/{payment.gateway_payment_id}/refunds").get("items", []):
-            if (item.get("notes") or {}).get("refund") == str(refund.pk):
+            if (item.get("notes") or {}).get("refund") == refund.reference:
                 refund.gateway_refund_id = item["id"]
                 return self._refund_state(item)
         return UNKNOWN
@@ -409,6 +413,7 @@ class MobikwikGateway(Gateway):
                 events.append(
                     Event(
                         kind=REFUND_PROCESSED if state == PROCESSED else REFUND_FAILED,
+                        refund_ref=str(detail.get("merchantRefId", "")),
                         refund_id=str(detail.get("merchantRefId", "")),
                         reason="MobiKwik could not complete the refund." if state == REJECTED else "",
                     )
@@ -416,7 +421,7 @@ class MobikwikGateway(Gateway):
         return events
 
     def refund(self, payment, refund):
-        reference = refund.pk.hex
+        reference = refund.reference  # new for every attempt: the gateway refuses a reused one
         data = self._signed_json(
             "/api/payments/v1/refund",
             {
@@ -438,8 +443,8 @@ class MobikwikGateway(Gateway):
     def refund_status(self, payment, refund):
         order = self._lookup(payment.order_id)
         for detail in (order or {}).get("refundDetails") or []:
-            if detail.get("merchantRefId") == refund.pk.hex:
-                refund.gateway_refund_id = refund.pk.hex
+            if detail.get("merchantRefId") == refund.reference:
+                refund.gateway_refund_id = refund.reference
                 return self._refund_state(detail)
         return UNKNOWN
 

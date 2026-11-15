@@ -180,10 +180,13 @@ def _failed(gateway_name, event):
     payment, _ = _locked_payment(gateway_name, event.order_id)
     if payment is None or payment.status != Payment.State.CREATED:
         return
-    payment.status = Payment.State.FAILED
     payment.failure_reason = (event.reason or "The payment did not go through.")[:255]
+    if not gateways.adapter(gateway_name).retries_within_order:
+        payment.status = Payment.State.FAILED
+    # Otherwise the order stays open: the guest may pay it on the next try, and if that success is
+    # never reported to us, the status lookups still have to find it.
     payment.save(update_fields=["status", "failure_reason"])
-    audit.log("payment.failed", payment, after={"reason": payment.failure_reason})
+    audit.log("payment.failed", payment, after={"reason": payment.failure_reason, "order": payment.status})
 
 
 def check(payment):
@@ -294,21 +297,25 @@ def issue(refund_id, manager, *, amount=None, manual=False, note=""):
             raise ValidationError({"note": ["Say how the money was returned."]})
         refund.amount, refund.manual, refund.note, refund.issued_by = amount, manual, note[:255], manager
         refund.status, refund.failure_reason, refund.issued_at = Refund.State.PROCESSING, "", timezone.now()
+        # A fresh attempt: a new reference, and no gateway id until this attempt is given one.
+        refund.attempt += 1
+        refund.gateway_refund_id = ""
         refund.save()
         audit.log("refund.issued", refund, actor=manager, after={"amount": amount, "manual": manual, "note": note})
     # The gateway call happens with nothing locked. The refund is already PROCESSING, so it cannot be
     # issued twice, and a webhook that arrives before the call returns finds it and settles it.
+    attempt = refund.attempt
     if manual:
-        return _settle(refund.pk, gateways.PROCESSED)
+        return _settle(refund.pk, gateways.PROCESSED, attempt=attempt)
     gateway = gateways.adapter(refund.payment.gateway)
     try:
         gateway_refund_id, state = gateway.refund(refund.payment, refund)
     except GatewayUnreachable:
         # Unknown outcome: the money may have moved. Leave it PROCESSING for reconcile() to find out.
-        return _settle(refund.pk, gateways.PENDING, reason=NO_ANSWER)
+        return _settle(refund.pk, gateways.PENDING, attempt=attempt, reason=NO_ANSWER)
     except GatewayError as exc:
-        return _settle(refund.pk, gateways.REJECTED, reason=str(exc))
-    return _settle(refund.pk, state, gateway_refund_id=gateway_refund_id)
+        return _settle(refund.pk, gateways.REJECTED, attempt=attempt, reason=str(exc))
+    return _settle(refund.pk, state, attempt=attempt, gateway_refund_id=gateway_refund_id)
 
 
 @transaction.atomic
@@ -325,10 +332,15 @@ def withdraw(refund_id, manager, note):
 
 
 @transaction.atomic
-def _settle(refund_id, state, *, gateway_refund_id="", reason=""):
-    """Records what the gateway said about a refund that is PROCESSING. Later repeats change nothing."""
+def _settle(refund_id, state, *, attempt=None, gateway_refund_id="", reason=""):
+    """Records what the gateway said about a refund that is PROCESSING. Later repeats change nothing.
+
+    attempt says which sending of the refund the answer is about, when the caller knows.
+    """
     refund = _locked_refund(refund_id)
     fields = []
+    if attempt not in (None, refund.attempt):
+        return refund  # about an earlier attempt, which was already settled as failed
     if gateway_refund_id and not refund.gateway_refund_id:
         refund.gateway_refund_id = gateway_refund_id[:64]
         fields.append("gateway_refund_id")
@@ -357,20 +369,18 @@ def _settle(refund_id, state, *, gateway_refund_id="", reason=""):
 
 def _refund_event(gateway_name, event):
     refunds = Refund.objects.filter(payment__gateway=gateway_name)
-    refund = None
-    if event.refund_ref:
-        try:
-            refund = refunds.filter(pk=event.refund_ref).first()
-        except (ValueError, TypeError, ValidationError):
-            refund = None
+    # Our own reference names the refund and which attempt at it the gateway is talking about.
+    refund_id, attempt = Refund.split_reference(event.refund_ref)
+    refund = refunds.filter(pk=refund_id).first() if refund_id else None
     if refund is None and event.refund_id:
-        refund = refunds.filter(gateway_refund_id=event.refund_id).first()
+        # No reference came back, so go by the gateway's id, which is only ever the current attempt's.
+        refund, attempt = refunds.filter(gateway_refund_id=event.refund_id).first(), None
     if refund is None:
         # Refunds made in the gateway's own dashboard are not known here. Staff record those by hand.
         log.warning("Ignored a %s refund event for a refund this system did not issue.", gateway_name)
         return
     state = gateways.PROCESSED if event.kind == gateways.REFUND_PROCESSED else gateways.REJECTED
-    _settle(refund.pk, state, gateway_refund_id=event.refund_id, reason=event.reason)
+    _settle(refund.pk, state, attempt=attempt, gateway_refund_id=event.refund_id, reason=event.reason)
 
 
 def _notify(refund, what):
@@ -396,6 +406,7 @@ def reconcile(now=None):
         status=Refund.State.PROCESSING, manual=False, issued_at__lte=now - timedelta(minutes=5)
     ).select_related("payment")
     for refund in waiting:
+        attempt = refund.attempt
         try:
             state = gateways.adapter(refund.payment.gateway).refund_status(refund.payment, refund)
         except GatewayError:
@@ -405,11 +416,14 @@ def reconcile(now=None):
                 # Half an hour on, the gateway still has no trace of the request. Nothing moved, so it
                 # is safe to send again.
                 _settle(
-                    refund.pk, gateways.REJECTED, reason="The gateway has no record of this refund. Issue it again."
+                    refund.pk,
+                    gateways.REJECTED,
+                    attempt=attempt,
+                    reason="The gateway has no record of this refund. Issue it again.",
                 )
                 changed += 1
         elif state != gateways.PENDING:
-            _settle(refund.pk, state, gateway_refund_id=refund.gateway_refund_id)
+            _settle(refund.pk, state, attempt=attempt, gateway_refund_id=refund.gateway_refund_id)
             changed += 1
     return changed
 

@@ -72,10 +72,29 @@ class Refund(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     issued_at = models.DateTimeField(null=True, blank=True)  # when a manager last sent it
+    # How many times it has been sent to the gateway. Each attempt has its own reference, so an answer
+    # about an earlier attempt can never be taken for the current one.
+    attempt = models.PositiveSmallIntegerField(default=0)
     processed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["created_at"]
+
+    @property
+    def reference(self):
+        """What the gateway is given to identify the current attempt: the refund id plus the attempt number."""
+        return f"{self.pk.hex}a{self.attempt}"
+
+    @staticmethod
+    def split_reference(reference):
+        """(refund id, attempt) from a reference a gateway echoed back, or (None, None) if it is not ours."""
+        text = str(reference)
+        try:
+            if text[32:33] != "a":
+                raise ValueError
+            return uuid.UUID(hex=text[:32]), int(text[33:])
+        except ValueError:
+            return None, None
 
 
 class WebhookEvent(models.Model):

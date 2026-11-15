@@ -413,16 +413,22 @@ export function CheckInPanel({ booking }: { booking: Booking }) {
   const [checked, setChecked] = useState<string[]>([]);
   const toggle = (id: string) =>
     setChecked((list) => (list.includes(id) ? list.filter((g) => g !== id) : [...list, id]));
+  // Guests on one booking can arrive at different times, so only those not yet in the register are listed.
+  const waiting = booking.guests.filter((guest) => !guest.in_register);
+  const later = booking.status === "CHECKED_IN";
   return (
     <Card className="space-y-3 border-brand-600">
-      <h2 className="font-semibold">Check in</h2>
+      <h2 className="font-semibold">{later ? "Check in another guest" : "Check in"}</h2>
       <p className="text-sm text-slate-600">
+        {later
+          ? `${waiting.length} of ${booking.guests.length} guests on this booking ${waiting.length === 1 ? "has" : "have"} not arrived yet. `
+          : ""}
         Compare each guest&apos;s original ID with the uploaded copy, then tick the guests who have arrived. They are
         entered in the guest register.
       </p>
       {error && <Notice tone="error">{error}</Notice>}
       <ul className="space-y-2">
-        {booking.guests.map((guest) => (
+        {waiting.map((guest) => (
           <li key={guest.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
             <label className="flex min-h-11 items-center gap-3">
               <input
@@ -454,7 +460,12 @@ export function CheckInPanel({ booking }: { booking: Booking }) {
       </ul>
       <Button
         disabled={busy || checked.length === 0}
-        onClick={() => run(() => api(`/bookings/${booking.id}/check-in`, { body: { guests: checked } }))}
+        onClick={() =>
+          run(async () => {
+            await api(`/bookings/${booking.id}/check-in`, { body: { guests: checked } });
+            setChecked([]);
+          })
+        }
       >
         {checked.length > 1 ? `Check in ${checked.length} guests` : "Check in"}
       </Button>

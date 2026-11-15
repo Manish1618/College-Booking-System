@@ -88,14 +88,36 @@ def test_check_in_verifies_ids_and_writes_the_register(requester, manager, room_
     assert desk.post(f"/api/bookings/{booking.pk}/check-out").status_code == 409
 
 
-def test_only_guests_who_arrived_are_entered(requester, manager, room_type, today):
+def test_guests_on_one_booking_can_arrive_at_different_times(requester, manager, room_type, today):
+    desk = client_for(manager)
     booking = allotted(requester, room_type, today)
-    absent = add_guest(booking, "Absent Guest")
-    arrived = booking.guests.exclude(pk=absent.pk).get()
-    assert check_in(client_for(manager), booking, [arrived]).status_code == 200
+    late = add_guest(booking, "Late Guest")
+    arrived = booking.guests.exclude(pk=late.pk).get()
+    data = check_in(desk, booking, [arrived]).data
+    assert data["status"] == "CHECKED_IN"
+    assert {g["name"]: g["in_register"] for g in data["guests"]} == {"Guest One": True, "Late Guest": False}
+    # The booking is checked in, and the desk can still check in the guest who has not arrived.
+    assert data["actions"]["check_in"] is True and data["actions"]["check_out"] is True
     assert list(RegisterEntry.objects.values_list("guest", flat=True)) == [arrived.pk]
-    absent.refresh_from_db()
-    assert absent.id_verified is False
+    late.refresh_from_db()
+    assert late.id_verified is False
+
+    assert check_in(desk, booking, [arrived]).status_code == 409  # never entered twice
+    assert check_in(desk, booking, [arrived, late]).status_code == 409
+    data = check_in(desk, booking, [late]).data
+    assert data["status"] == "CHECKED_IN" and data["actions"]["check_in"] is False
+    entries = list(RegisterEntry.objects.order_by("serial_number"))
+    assert [(e.serial_number, e.guest_id) for e in entries] == [(1, arrived.pk), (2, late.pk)]
+    # The payment is still written once, and the booking was checked in once.
+    assert [e.amount_paid for e in entries] == [Decimal("2000.00"), Decimal("0.00")]
+    assert AuditLog.objects.filter(action="booking.checked_in").count() == 1
+    assert AuditLog.objects.filter(action="register.entered").count() == 2
+    late.refresh_from_db()
+    assert late.id_verified is True
+
+    desk.post(f"/api/bookings/{booking.pk}/check-out")
+    assert RegisterEntry.objects.filter(departure_at__isnull=False).count() == 2
+    assert check_in(desk, booking, [late]).status_code == 409
 
 
 def test_guest_without_an_id_copy_cannot_be_checked_in(requester, manager, room_type, today):

@@ -51,7 +51,7 @@ This covers Phase 1 (foundation), Phase 2 (booking core) and Phase 3 (desk and b
 | Audit log | Append-only, enforced by a database trigger, readable by the super admin |
 | Payments | One gateway interface with three adapters: a simulated gateway, Razorpay and MobiKwik. A booking is confirmed only by the gateway's signed webhook or a server-to-server lookup, never by the browser |
 | Refunds | Cancelling a paid booking proposes the refund the rules allow. The manager sends it through the gateway, records one returned by hand, or gives one outside the rules |
-| Check-in and check-out | The desk ticks each arriving guest after comparing the ID with the uploaded copy. A **Desk** screen lists arrivals, departures, guests in house and refunds to send |
+| Check-in and check-out | The desk ticks each arriving guest after comparing the ID with the uploaded copy. Guests on one booking can arrive at different times. A **Desk** screen lists arrivals, departures, guests in house and refunds to send |
 | Guest register | Numbered entries written at check-in; searchable, printable, CSV and PDF export; every view and export is logged |
 | Receipts | A PDF with the booking ID and payment reference, attached to the confirmation email and downloadable later |
 
@@ -158,7 +158,7 @@ npm ci && npm run dev                      # http://localhost:3000, proxies /api
 
 ```bash
 cd backend
-pytest --cov=apps                 # 159 tests; needs PostgreSQL and the Pango libraries (see below)
+pytest --cov=apps                 # 161 tests; needs PostgreSQL and the Pango libraries (see below)
 ruff check . && ruff format --check .
 bandit -q -r apps config -ll
 pip-audit -r requirements.txt
@@ -214,7 +214,7 @@ The PRD leaves these open. Each has a working default so the build is not blocke
 | Refund rules | Full refund when the guest cancels 48 hours or more before noon on the arrival date, half from 48 down to 24 hours, nothing later, nothing for a no-show. The desk can refund in full when the guesthouse cancels. Every number is a setting |
 | Who issues refunds | Nothing is refunded automatically. The rules propose an amount and the manager sends it, and may change it |
 | Payment gateway accounts | Razorpay and MobiKwik are both built. Which one the college signs up for, and its keys, are still needed |
-| Check-in window | A booking can be checked in from its arrival date until the day before check-out. Not every guest on a booking has to arrive |
+| Check-in window | A booking can be checked in from its arrival date until the day before check-out. Not every guest on a booking has to arrive, and those who come later are checked in from the same booking until check-out |
 | Register contents | Name, phone, address, ID type, room, arrival, departure, purpose and amount. The ID number itself is not stored |
 | Retention period | Nothing is auto-deleted yet. Needs the college's period before go-live |
 | College SSO | Not connected. College-domain email OTP is the fallback, as the PRD allows |

@@ -165,6 +165,9 @@ export default function BookingPage() {
                     </p>
                   ))}
                 {guest.id_verified && <p className="text-emerald-700">ID checked at the desk</p>}
+                {guest.in_register === false && b.status === "CHECKED_IN" && (
+                  <p className="text-slate-600">Not arrived yet</p>
+                )}
               </li>
             ))}
           </ul>

@@ -286,13 +286,34 @@ def test_razorpay_order_checkout_and_signed_webhook(client, requester, approved,
     assert razorpay_webhook(client, "payment.authorized", authorized, event_id="evt_3").status_code == 200
 
 
-def test_razorpay_failure_then_success_on_the_same_order(client, requester, approved, razorpay):
-    payment, _ = open_order(client_for(requester), approved, "razorpay")
+def test_razorpay_failed_attempt_leaves_the_order_open(client, requester, approved, razorpay):
+    guest = client_for(requester)
+    payment, _ = open_order(guest, approved, "razorpay")
     failed = captured(status="failed", error_description="Payment was declined by the bank")
     assert razorpay_webhook(client, "payment.failed", failed).status_code == 200
     payment.refresh_from_db()
-    assert (payment.status, payment.failure_reason) == ("FAILED", "Payment was declined by the bank")
-    assert razorpay_webhook(client, "payment.captured", captured(), event_id="evt_2").status_code == 200
+    # Razorpay lets the guest try again inside the same order, so one failed attempt does not close it.
+    assert (payment.status, payment.failure_reason) == ("CREATED", "Payment was declined by the bank")
+    assert open_order(guest, approved, "razorpay")[0].pk == payment.pk
+
+    # The retry succeeds but its webhook never arrives. The lookups still find it.
+    items = [
+        {"id": "pay_1", "status": "failed"},
+        {"id": "pay_2", "order_id": "order_ABC", "status": "captured", "amount": 200000},
+    ]
+    razorpay.on("GET", "/orders/order_ABC/payments", {"items": items})
+    assert guest.post(f"/api/bookings/{approved.pk}/payment-status").data["status"] == "CONFIRMED"
+    payment.refresh_from_db()
+    assert (payment.status, payment.gateway_payment_id, payment.failure_reason) == ("PAID", "pay_2", "")
+
+
+def test_reconcile_finds_a_retry_that_succeeded_after_a_failed_attempt(client, requester, approved, razorpay):
+    payment, _ = open_order(client_for(requester), approved, "razorpay")
+    razorpay_webhook(client, "payment.failed", captured(status="failed"))
+    Payment.objects.filter(pk=payment.pk).update(created_at=timezone.now() - timedelta(minutes=10))
+    paid = {"id": "pay_2", "order_id": "order_ABC", "status": "captured", "amount": 200000}
+    razorpay.on("GET", "/orders/order_ABC/payments", {"items": [paid]})
+    assert services.reconcile() == 1
     assert Booking.objects.get(pk=approved.pk).status == Status.CONFIRMED
 
 
@@ -593,7 +614,7 @@ def test_razorpay_refund_is_settled_by_the_webhook(client, requester, manager, a
     razorpay.on("POST", "/payments/pay_XYZ/refund", {"id": "rfnd_1", "status": "pending"})
     assert desk.post(f"/api/refunds/{refund.pk}/issue").data["status"] == "PROCESSING"
     call = razorpay.last("/payments/pay_XYZ/refund")
-    assert call.json == {"amount": 200000, "notes": {"refund": str(refund.pk)}}
+    assert call.json == {"amount": 200000, "notes": {"refund": f"{refund.pk.hex}a1"}}
     payment.refresh_from_db()
     assert payment.refunded_amount == 0
 
@@ -607,7 +628,7 @@ def test_razorpay_refund_is_settled_by_the_webhook(client, requester, manager, a
                 "payment_id": "pay_XYZ",
                 "amount": 200000,
                 "status": "processed",
-                "notes": {"refund": str(refund.pk)},
+                "notes": {"refund": f"{refund.pk.hex}a1"},
             }
         }
     }
@@ -632,6 +653,53 @@ def test_refund_refused_by_the_gateway_can_be_retried(requester, manager, approv
     assert desk.post(f"/api/refunds/{refund.pk}/issue").data["status"] == "PROCESSED"
 
 
+def test_retried_refund_is_tracked_by_its_own_gateway_id(client, requester, manager, approved, razorpay):
+    razorpay_paid(requester, approved, razorpay)
+    desk = client_for(manager)
+    desk.post(f"/api/bookings/{approved.pk}/cancel", {"full_refund": True}, format="json")
+    refund = Refund.objects.get()
+
+    def event(kind, gateway_id, attempt, event_id):
+        entity = {
+            "id": gateway_id,
+            "payment_id": "pay_XYZ",
+            "amount": 200000,
+            "notes": {"refund": f"{refund.pk.hex}a{attempt}"},
+        }
+        return razorpay_webhook(client, kind, {"refund": {"entity": entity}}, event_id=event_id)
+
+    # First attempt: the gateway accepts it, gives it an id, and later reports that it failed.
+    razorpay.on("POST", "/payments/pay_XYZ/refund", {"id": "rfnd_old", "status": "pending"})
+    assert desk.post(f"/api/refunds/{refund.pk}/issue").data["status"] == "PROCESSING"
+    assert event("refund.failed", "rfnd_old", 1, "evt_f1").status_code == 200
+    refund.refresh_from_db()
+    assert (refund.status, refund.gateway_refund_id) == ("FAILED", "rfnd_old")
+
+    # Second attempt: a new reference goes out, and the new gateway id replaces the old one.
+    razorpay.on("POST", "/payments/pay_XYZ/refund", {"id": "rfnd_new", "status": "pending"})
+    assert desk.post(f"/api/refunds/{refund.pk}/issue").data["status"] == "PROCESSING"
+    assert razorpay.last("/payments/pay_XYZ/refund").json["notes"] == {"refund": f"{refund.pk.hex}a2"}
+    refund.refresh_from_db()
+    assert (refund.attempt, refund.gateway_refund_id) == (2, "rfnd_new")
+
+    # The old attempt's failure is delivered again. It must not fail the attempt that is in flight.
+    assert event("refund.failed", "rfnd_old", 1, "evt_f2").status_code == 200
+    refund.refresh_from_db()
+    assert refund.status == "PROCESSING"
+
+    # The scheduled check asks about the new id, not the old one, and settles the refund once.
+    Refund.objects.filter(pk=refund.pk).update(issued_at=timezone.now() - timedelta(minutes=10))
+    razorpay.on("GET", "/refunds/rfnd_old", {"id": "rfnd_old", "status": "failed"})
+    razorpay.on("GET", "/refunds/rfnd_new", {"id": "rfnd_new", "status": "processed"})
+    assert services.reconcile() == 1
+    refund.refresh_from_db()
+    assert refund.status == "PROCESSED" and Payment.objects.get().refunded_amount == Decimal("2000.00")
+    assert desk.post(f"/api/refunds/{refund.pk}/issue").status_code == 409
+    # Notes that are not one of our references are ignored rather than crashing the webhook.
+    odd = {"refund": {"entity": {"id": "rfnd_x", "payment_id": "pay_XYZ", "amount": 1, "notes": {"refund": "abc"}}}}
+    assert razorpay_webhook(client, "refund.processed", odd, event_id="evt_odd").status_code == 200
+
+
 def test_refund_with_no_answer_is_never_assumed_to_have_failed(requester, manager, approved, razorpay):
     razorpay_paid(requester, approved, razorpay)
     desk = client_for(manager)
@@ -644,7 +712,7 @@ def test_refund_with_no_answer_is_never_assumed_to_have_failed(requester, manage
 
     Refund.objects.filter(pk=refund.pk).update(issued_at=timezone.now() - timedelta(minutes=10))
     # The gateway did receive it: the scheduled check finds it by the note and settles it.
-    found = {"items": [{"id": "rfnd_7", "status": "processed", "notes": {"refund": str(refund.pk)}}]}
+    found = {"items": [{"id": "rfnd_7", "status": "processed", "notes": {"refund": f"{refund.pk.hex}a1"}}]}
     razorpay.on("GET", "/payments/pay_XYZ/refunds", found)
     assert services.reconcile() == 1
     refund.refresh_from_db()
@@ -685,12 +753,12 @@ def test_mobikwik_refund_request_and_status(client, requester, manager, approved
     call = mobikwik.last("/api/payments/v1/refund")
     assert json.loads(call.data) == {
         "merchantIdentifier": "merchant-1", "orderId": payment.order_id, "refundType": "P",
-        "refundAmount": "50000", "merchantRefundId": refund.pk.hex,
+        "refundAmount": "50000", "merchantRefundId": f"{refund.pk.hex}a1",
     }  # fmt: skip
     assert call.headers["checksum"] == sign("zaak-secret", call.data)
 
     Refund.objects.filter(pk=refund.pk).update(issued_at=timezone.now() - timedelta(minutes=10))
-    done = [{"merchantRefId": refund.pk.hex, "amount": "50000", "refundStatus": "SUCCESS"}]
+    done = [{"merchantRefId": f"{refund.pk.hex}a1", "amount": "50000", "refundStatus": "SUCCESS"}]
     mobikwik.on("POST", "/api/payments/v1/status", zaakpay_status(payment, "4", refunds=done))
     assert services.reconcile() == 1
     refund.refresh_from_db()

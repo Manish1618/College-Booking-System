@@ -32,7 +32,7 @@ def visible_bookings(request):
     """The only bookings a user can ever load: their own, those routed to them, or all for the desk."""
     user = request.user
     qs = Booking.objects.select_related("requester", "room_type", "room", "student_link").prefetch_related(
-        "guests", "documents__guest", "approvals__approver", "payments__refunds"
+        "guests__register_entries", "documents__guest", "approvals__approver", "payments__refunds"
     )
     if is_manager(request):
         return qs
