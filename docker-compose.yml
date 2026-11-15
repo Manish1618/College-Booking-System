@@ -1,0 +1,92 @@
+# One command brings up the whole stack:  docker compose up --build
+# Then open http://localhost:8080
+name: guesthouse
+
+x-backend: &backend
+  build: ./backend
+  image: guesthouse-backend
+  env_file: .env
+  restart: unless-stopped
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  volumes:
+    - media:/data/media
+    - private_media:/data/private
+    - static:/data/static
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    # No published ports: the database is reachable only from the other containers.
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    <<: *backend
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
+             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --access-logfile -"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/healthz')"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+  worker:
+    <<: *backend
+    command: celery -A config worker --loglevel info --concurrency 2
+
+  beat:
+    <<: *backend
+    command: celery -A config beat --loglevel info --schedule /tmp/celerybeat-schedule
+
+  frontend:
+    build: ./frontend
+    image: guesthouse-frontend
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - media:/srv/media:ro
+      - static:/srv/static:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+
+volumes:
+  pgdata:
+  media:
+  private_media:
+  static:
+  caddy_data:
+  caddy_config:

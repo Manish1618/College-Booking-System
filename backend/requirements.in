@@ -1,0 +1,16 @@
+Django>=5.2,<5.3
+djangorestframework
+psycopg[binary]
+django-environ
+mozilla-django-oidc
+django-otp
+django-ratelimit
+django-csp
+django-storages
+boto3
+celery
+redis
+django-redis
+Pillow
+gunicorn
+requests
