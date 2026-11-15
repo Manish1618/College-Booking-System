@@ -8,6 +8,8 @@ import { api, fmtDate, inr, isoDate } from "@/lib/api";
 import { isManager, useAction, useMe } from "@/lib/hooks";
 import type { Room, RoomType, Tariff } from "@/lib/types";
 
+import { RoomBlocks } from "./room-blocks";
+
 export default function ManagePage() {
   const { data: me, isLoading } = useMe();
   const allowed = isManager(me);
@@ -54,6 +56,7 @@ export default function ManagePage() {
           <h2 className="mb-4 text-lg font-semibold">Add a room type</h2>
           <TypeForm />
         </Card>
+        <RoomBlocks rooms={rooms.data ?? []} />
       </div>
     </>
   );

@@ -30,10 +30,13 @@ To try the whole flow: as faculty pick dates (starting today, so the guest can b
 request a room, as registrar approve it, as faculty pay with the test payment button, then as manager
 allot a room from **All bookings**, check the guest in and out from **Desk**, and look at **Register**.
 Cancel a paid booking to see a refund become due on the desk screen.
+On a paid booking choose **Change dates** to send new dates for approval, block a room for repairs at the
+bottom of **Rooms**, and open **Reports** as manager to see occupancy and money for the month.
 
 ## What is built
 
-This covers Phase 1 (foundation), Phase 2 (booking core) and Phase 3 (desk and billing) of the PRD.
+This covers Phase 1 (foundation), Phase 2 (booking core), Phase 3 (desk and billing) and Phase 4
+(changes of dates, reports and maintenance blocks) of the PRD.
 
 | Area | State |
 | --- | --- |
@@ -54,9 +57,11 @@ This covers Phase 1 (foundation), Phase 2 (booking core) and Phase 3 (desk and b
 | Check-in and check-out | The desk ticks each arriving guest after comparing the ID with the uploaded copy. Guests on one booking can arrive at different times. A **Desk** screen lists arrivals, departures, guests in house and refunds to send |
 | Guest register | Numbered entries written at check-in; searchable, printable, CSV and PDF export; every view and export is logged |
 | Receipts | A PDF with the booking ID and payment reference, attached to the confirmation email and downloadable later |
+| Change of dates | Before check-in, the guest or the desk can ask for new dates. An unpaid request takes the new dates and goes back for approval. A paid booking keeps its dates and its room until the approver agrees, and until any balance is paid; a cheaper stay proposes a refund of the difference |
+| Maintenance blocks | A manager takes a room out of service for a date range with a reason. A blocked room is not sold or offered for allotment, and the database refuses a block over a stay allotted to that room |
+| Reports | A **Reports** screen for manager and admin: occupancy by day and by room type, money received and refunded by gateway, approvals waiting and decided, and no-shows, for any range up to a year, with a day-by-day CSV |
 
-Not built yet (Phase 4 onwards): cancel-and-modify with re-approval, dashboards and reports,
-maintenance blocks, and the hardening and launch work listed under "Known gaps".
+Not built yet: the hardening and launch work listed under "Known gaps".
 
 ## How it is put together
 
@@ -158,7 +163,7 @@ npm ci && npm run dev                      # http://localhost:3000, proxies /api
 
 ```bash
 cd backend
-pytest --cov=apps                 # 164 tests; needs PostgreSQL and the Pango libraries (see below)
+pytest --cov=apps                 # 209 tests; needs PostgreSQL and the Pango libraries (see below)
 ruff check . && ruff format --check .
 bandit -q -r apps config -ll
 pip-audit -r requirements.txt
@@ -192,6 +197,7 @@ The ones that need a decision before go-live:
 | `REFUND_FULL_HOURS` / `REFUND_PARTIAL_HOURS` / `REFUND_PARTIAL_PERCENT` | 48 / 24 / 50 | Refund on a guest's cancellation, by hours before arrival |
 | `REFUND_NO_SHOW_PERCENT` | 0 | Refund proposed for a no-show |
 | `CHECK_IN_HOUR` | 12 | Arrival time the refund hours are counted back from |
+| `DATE_CHANGE_MIN_HOURS` | 48 | A guest can change the dates of a paid booking online until this many hours before arrival. The desk can ask for a change until check-in |
 | `S3_ENABLED` and `S3_*` | off | Private encrypted bucket for letters, ID copies and photo originals |
 | `EMAIL_BACKEND`, `SMS_BACKEND` | console | Real mail server and SMS provider |
 | `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` | empty | Set both to put the Cloudflare Turnstile check on the sign-in form |
@@ -216,6 +222,11 @@ The PRD leaves these open. Each has a working default so the build is not blocke
 | Payment gateway accounts | Razorpay and MobiKwik are both built. Which one the college signs up for, and its keys, are still needed |
 | Check-in window | A booking can be checked in from its arrival date until the day before check-out. Not every guest on a booking has to arrive, and those who come later are checked in from the same booking until check-out |
 | Register contents | Name, phone, address, ID type, room, arrival, departure, purpose and amount. The ID number itself is not stored |
+| Changing a paid booking | The booking is not touched until the change is approved, so a refusal or a slow answer never costs the guest a confirmed stay. The new stay is priced at the tariff in force on its check-in date. A higher price must be paid within the payment window (24 hours) or the change lapses; a lower price proposes a refund of the difference. Only the dates can change, not the room type |
+| How late a guest can change dates | Online until 48 hours before noon on the arrival date, the same point at which a full refund stops, so moving a stay is not a way round the refund rules. After that the desk can still ask for a change on the guest's behalf, and it still needs approval |
+| Who approves a change of dates | The same approvers as for a new request. A change can be approved or rejected, not sent back |
+| Blocking a room on a full night | The manager is warned that a booking would be left without a room and can go ahead anyway (a burst pipe does not wait). The booking is not moved or cancelled automatically |
+| What counts as occupancy and revenue | A night is sold once the stay is paid for. Rooms on offer are the rooms active today minus those blocked that night; there is no history of when rooms were added or retired. Money is counted on the day it was received or refunded, not on the day of the stay |
 | Retention period | Nothing is auto-deleted yet. Needs the college's period before go-live |
 | College SSO | Not connected. College-domain email OTP is the fallback, as the PRD allows |
 | Hosting provider | Nothing is provider-specific. Any VM with Docker and an S3-compatible bucket works |

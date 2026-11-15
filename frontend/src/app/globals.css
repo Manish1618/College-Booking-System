@@ -7,6 +7,8 @@
   --color-brand-600: #0f6b6b;
   --color-brand-700: #0b5555;
   --color-brand-900: #083838;
+  /* Chart marks: the brand's hue with enough colour to read as teal, not grey, at small sizes. */
+  --color-chart: #009090;
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 

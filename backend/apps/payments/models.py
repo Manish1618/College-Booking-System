@@ -20,6 +20,10 @@ class Payment(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     booking = models.ForeignKey(Booking, on_delete=models.PROTECT, related_name="payments")
+    # Set when this payment is the balance for a change of dates, not the booking's own charge.
+    date_change = models.ForeignKey(
+        "bookings.DateChange", null=True, blank=True, on_delete=models.PROTECT, related_name="payments"
+    )
     gateway = models.CharField(max_length=10, choices=Gateway.choices)
     order_id = models.CharField(max_length=64, unique=True)
     gateway_payment_id = models.CharField(max_length=64, blank=True)
