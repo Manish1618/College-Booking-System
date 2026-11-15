@@ -113,6 +113,8 @@ export interface Booking {
   approvals: { id: string; decision: string; comment: string; approver_name: string; decided_at: string }[];
   /** Money in and out. Only the booking's owner and the desk receive it. */
   payment: PaymentSummary | null;
+  /** The change of dates that is open on a paid booking, or else the last one that was asked for. */
+  date_change: DateChange | null;
   actions: {
     edit: boolean;
     submit: boolean;
@@ -124,7 +126,32 @@ export interface Booking {
     check_out: boolean;
     refund: boolean;
     receipt: boolean;
+    change_dates: boolean;
+    decide_change: boolean;
+    withdraw_change: boolean;
   };
+}
+
+/** New dates asked for on a paid booking. The booking keeps its own dates until this is applied. */
+export interface DateChange {
+  id: string;
+  status: "PENDING" | "AWAITING_PAYMENT" | "APPLIED" | "REJECTED" | "WITHDRAWN" | "EXPIRED";
+  status_label: string;
+  open: boolean;
+  check_in: string;
+  check_out: string;
+  nights: number;
+  amount: string;
+  /** What the guest pays if the new stay costs more. */
+  balance: string;
+  /** What goes back to the guest if it costs less. */
+  refund: string;
+  old_check_in: string;
+  old_check_out: string;
+  old_amount: string;
+  expires_at: string;
+  comment: string;
+  requested_at: string;
 }
 
 export interface Payment {
@@ -167,6 +194,8 @@ export interface PaymentSummary {
   refunds: Refund[];
   refundable: string;
   refund_on_cancel: { percent: number; amount: string; full: string } | null;
+  /** What can be paid right now: the booking's charge, or the balance for an approved change of dates. */
+  due: string;
   /** An order is open with a gateway and its outcome is not known yet. */
   pending: boolean;
   receipt: boolean;
@@ -185,6 +214,76 @@ export interface DeskDay {
   in_house: Booking[];
   to_allot: number;
   refunds_due: number;
+  out_of_service: RoomBlock[];
+}
+
+/** A room out of service from starts_on until the day before ends_on, the day it is back. */
+export interface RoomBlock {
+  id: string;
+  room: string;
+  room_number: string;
+  room_type_name: string;
+  starts_on: string;
+  ends_on: string;
+  nights: number;
+  reason: string;
+  created_by_name: string | null;
+  created_at: string;
+}
+
+export interface ReportDay {
+  date: string;
+  available: number;
+  sold: number;
+  percent: number | null;
+  received: string;
+  refunded: string;
+}
+
+export interface Report {
+  from: string;
+  to: string;
+  days: number;
+  occupancy: {
+    room_nights_available: number;
+    room_nights_sold: number;
+    percent: number | null;
+    by_room_type: {
+      room_type: string;
+      name: string;
+      rooms: number;
+      available: number;
+      sold: number;
+      percent: number | null;
+    }[];
+  };
+  revenue: {
+    received: string;
+    refunded: string;
+    net: string;
+    by_gateway: { gateway: string; label: string; received: string; refunded: string }[];
+    refunds_outstanding: string;
+  };
+  approvals: {
+    waiting: number;
+    oldest_waiting_since: string | null;
+    decided: { approved: number; rejected: number; sent_back: number };
+    median_hours: number | null;
+  };
+  no_shows: {
+    count: number;
+    bookings: {
+      id: string;
+      reference: string;
+      requester_name: string;
+      room_type_name: string;
+      check_in: string;
+      nights: number;
+      kept: string;
+    }[];
+  };
+  bookings: { requested: number; stays: number; cancelled: number };
+  daily: ReportDay[];
 }
 
 export interface RegisterEntry {

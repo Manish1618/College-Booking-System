@@ -68,6 +68,33 @@ export default function DeskPage() {
         hint={(b) => `Leaves ${fmtDate(b.check_out)}`}
       />
 
+      {day.out_of_service.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-lg font-semibold">
+            Out of service today <span className="font-normal text-slate-500">({day.out_of_service.length})</span>
+          </h2>
+          <ul className="space-y-3">
+            {day.out_of_service.map((block) => (
+              <li key={block.id}>
+                <Card className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium">
+                      Room {block.room_number} · {block.room_type_name}
+                    </p>
+                    <p className="text-sm text-slate-600">
+                      {block.reason} · back in service on {fmtDate(block.ends_on)}
+                    </p>
+                  </div>
+                  <Link href="/manage" className={`text-sm ${linkClass}`}>
+                    Change
+                  </Link>
+                </Card>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <section>
         <h2 className="mb-3 text-lg font-semibold">
           Refunds to send{" "}

@@ -91,9 +91,12 @@ def _check(room, starts_on, ends_on, *, force, existing=None):
         spare = services.available_count(room_type, max(starts_on, today), ends_on, without_block=existing)
         if spare < 1:
             raise Overbooked(
-                f"Every {room_type.name} room is booked on at least one of those nights. Blocking room "
-                f"{room.number} would leave a booking without a room. Move or cancel a booking first, or "
-                "confirm that you want to block the room anyway."
+                {
+                    "detail": f"Every {room_type.name} room is booked on at least one of those nights. Blocking "
+                    f"room {room.number} would leave a booking without a room. Move or cancel a booking first, "
+                    "or confirm that you want to block the room anyway.",
+                    "code": "overbooked",  # lets the screen offer the confirmation instead of a dead end
+                }
             )
 
 

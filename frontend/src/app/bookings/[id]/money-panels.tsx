@@ -69,7 +69,8 @@ export function PayPanel({ booking, justReturned }: { booking: Booking; justRetu
       try {
         const latest = await api<Booking>(`/bookings/${booking.id}/payment-status`, { method: "POST" });
         if (stopped) return;
-        if (latest.status !== "APPROVED") return void refresh();
+        // Nothing is left to pay once the server has heard: the booking is confirmed, or its dates have moved.
+        if (!latest.actions.pay) return void refresh();
         if (latest.payment && !latest.payment.pending) {
           // The gateway has answered and it was not a success.
           setError("The payment did not go through. No money was taken. You can try again.");
@@ -90,6 +91,8 @@ export function PayPanel({ booking, justReturned }: { booking: Booking; justRetu
     // refresh is a new function on every render; the wait must not restart because of that.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, booking.id]);
+
+  const due = booking.payment?.due ?? booking.amount;
 
   async function start(gateway: string) {
     setError("");
@@ -132,7 +135,11 @@ export function PayPanel({ booking, justReturned }: { booking: Booking; justRetu
 
   return (
     <Card className="space-y-3 border-brand-600">
-      <h2 className="font-semibold">Pay {inr(booking.amount)}</h2>
+      <h2 className="font-semibold">
+        {booking.date_change?.status === "AWAITING_PAYMENT"
+          ? `Pay the balance of ${inr(due)} for the new dates`
+          : `Pay ${inr(due)}`}
+      </h2>
       {error && <Notice tone="error">{error}</Notice>}
       {phase === "waiting" ? (
         <Notice>Checking with the payment gateway. This usually takes a few seconds. Please keep this page open.</Notice>

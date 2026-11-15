@@ -110,7 +110,7 @@ def test_block_that_would_leave_a_booking_without_a_room_needs_confirming(client
     make_booking(requester, room_type, stay, Status.CONFIRMED)
     make_booking(requester, room_type, stay, Status.CONFIRMED)
     resp = block(desk, room, stay[0], stay[1])
-    assert resp.status_code == 409 and resp.data["detail"].code == "overbooked"
+    assert resp.status_code == 409 and resp.data["code"] == "overbooked"
     assert RoomBlock.objects.count() == 0
     # Nights that are not full can be blocked without being asked.
     assert block(desk, room, stay[1], stay[1] + timedelta(days=1)).status_code == 201
