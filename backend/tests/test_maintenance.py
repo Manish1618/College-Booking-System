@@ -144,6 +144,34 @@ def test_block_can_be_extended_shortened_and_removed(clients, requester, room_ty
     assert availability(desk, room_type, (stay[1], stay[1] + timedelta(days=2))) == 2
 
 
+def test_putting_a_room_back_keeps_the_nights_it_was_already_out(clients, room_type, manager, today):
+    """Otherwise last week's occupancy would change the moment a repair is finished."""
+    desk, room = clients["manager"], room_type.rooms.get(number="101")
+    started = RoomBlock.objects.create(
+        room=room, starts_on=today - timedelta(days=2), ends_on=today + timedelta(days=3), reason="Leak",
+        created_by=manager,
+    )  # fmt: skip
+    report = lambda: desk.get(  # noqa: E731
+        "/api/reports/summary", {"from": today - timedelta(days=2), "to": today + timedelta(days=2)}
+    ).data["daily"]
+    assert [day["available"] for day in report()] == [1, 1, 1, 1, 1]
+
+    assert desk.delete(f"/api/room-blocks/{started.pk}").status_code == 204
+    started.refresh_from_db()
+    assert started.ends_on == today
+    assert [day["available"] for day in report()] == [1, 1, 2, 2, 2]
+    assert desk.get("/api/room-blocks").data == [] and desk.get("/api/desk").data["out_of_service"] == []
+    entry = AuditLog.objects.get(action="room.unblocked")
+    assert entry.before["ends_on"] == (today + timedelta(days=3)).isoformat()
+    assert entry.after["ends_on"] == today.isoformat()
+    # Asking again changes nothing, and a block that begins today has no nights to keep.
+    assert desk.delete(f"/api/room-blocks/{started.pk}").status_code == 204
+    assert AuditLog.objects.filter(action="room.unblocked").count() == 1
+    from_today = block(desk, room, today, today + timedelta(days=2)).data
+    assert desk.delete(f"/api/room-blocks/{from_today['id']}").status_code == 204
+    assert list(RoomBlock.objects.values_list("pk", flat=True)) == [started.pk]
+
+
 def test_blocks_on_inactive_rooms_do_not_reduce_availability_twice(clients, room_type, stay):
     desk, room = clients["manager"], room_type.rooms.get(number="101")
     Room.objects.filter(pk=room.pk).update(is_active=False)

@@ -178,16 +178,26 @@ class RoomBlockViewSet(
 
     @transaction.atomic
     def destroy(self, request, *args, **kwargs):
-        block = self.get_object()
+        """Puts the room back into service from today.
+
+        A block that has not started is removed. One that has already kept the room out for some nights
+        ends today instead, so those nights still count as out of service in the reports.
+        """
+        block = RoomBlock.objects.select_for_update().get(pk=self.get_object().pk)
+        today = timezone.localdate()
+        before, after = self._plain(block), None
+        if block.starts_on >= today:
+            block.delete()
+        elif block.ends_on > today:
+            block.ends_on = today
+            block.save(update_fields=["ends_on"])
+            after = self._plain(block)
+        else:
+            return Response(status=204)  # already over: the room is in service and the record stays
         audit.log(
-            "room.unblocked",
-            block,
-            actor=request.user,
-            before=self._plain(block),
-            entity="room",
+            "room.unblocked", block, actor=request.user, before=before, after=after, entity="room",
             entity_id=block.room_id,
-        )
-        block.delete()
+        )  # fmt: skip
         return Response(status=204)
 
     @staticmethod
