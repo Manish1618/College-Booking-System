@@ -4,16 +4,17 @@ from collections import Counter
 from datetime import datetime, time, timedelta
 
 from django.conf import settings
-from django.db import IntegrityError, transaction
-from django.db.models import Q
+from django.db import IntegrityError, connection, transaction
+from django.db.models import Max, Q
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
+from apps.audit import services as audit
 from apps.rooms.models import Room, RoomType
 
 from . import routing
 from .exceptions import Conflict
-from .models import Approval, Booking, Category, Document, Status
+from .models import Approval, Booking, Category, Document, RegisterEntry, Status
 from .state import HOLDING, transition
 
 
@@ -116,11 +117,21 @@ def submit(booking_id, actor):
 
 
 @transaction.atomic
-def cancel(booking_id, actor, *, by_staff=False):
+def cancel(booking_id, actor, *, by_staff=False, full_refund=False, reason=""):
+    """Cancels and releases the room. If money was paid, the refund the rules allow becomes due.
+
+    full_refund is for the desk only: the guesthouse, not the guest, is the one cancelling.
+    """
+    from apps.payments import services as payments  # payments builds on bookings, so it is imported late
+
     booking = locked(booking_id)
     if booking.requester_id != actor.pk and not by_staff:
         raise PermissionDenied()
-    return transition(booking, Status.CANCELLED, actor=actor, room=None, hold_expires_at=None)
+    booking = transition(
+        booking, Status.CANCELLED, actor=actor, comment=(reason or "").strip(), room=None, hold_expires_at=None
+    )
+    payments.on_cancelled(booking, actor, full=by_staff and full_refund)
+    return booking
 
 
 # --- Approver ---------------------------------------------------------------
@@ -182,6 +193,70 @@ def allot(booking_id, manager, room_id):
         raise
 
 
+# --- Desk: arrivals and departures ------------------------------------------
+REGISTER_LOCK = 0x47485247  # advisory lock key ("GHRG"): one writer of register serial numbers at a time
+
+
+@transaction.atomic
+def check_in(booking_id, manager, guest_ids):
+    """Checks in the guests whose ID the desk has compared with the uploaded copy, and enters them
+    in the guest register. guest_ids are the guests who arrived; at least one is needed."""
+    from apps.payments import services as payments
+
+    booking = locked(booking_id)
+    if booking.status != Status.ALLOTTED:
+        raise Conflict("Only a booking with an allotted room can be checked in.")
+    today = timezone.localdate()
+    if today < booking.check_in:
+        raise Conflict(f"This stay starts on {booking.check_in:%d %b %Y}. It cannot be checked in earlier.")
+    if today >= booking.check_out:
+        raise Conflict("This stay has already ended.")
+    wanted = set(guest_ids)
+    guests = [guest for guest in booking.guests.select_related("id_document") if guest.pk in wanted]
+    if not guests or len(guests) != len(wanted):
+        raise ValidationError({"guests": ["Tick each arriving guest once their ID has been checked."]})
+    if any(guest.id_document is None for guest in guests):
+        raise ValidationError({"guests": ["A guest has no uploaded ID copy to check against."]})
+    booking = transition(booking, Status.CHECKED_IN, actor=manager)
+
+    now = timezone.now()
+    with connection.cursor() as cursor:
+        # Serial numbers must have no gaps and no repeats, so entries are numbered one check-in at a time.
+        cursor.execute("SELECT pg_advisory_xact_lock(%s)", [REGISTER_LOCK])
+    serial = RegisterEntry.objects.aggregate(last=Max("serial_number"))["last"] or 0
+    paid = payments.net_paid(booking)
+    for index, guest in enumerate(guests):
+        guest.id_verified = True
+        guest.save(update_fields=["id_verified"])
+        Document.objects.filter(pk=guest.id_document_id).update(verified_by=manager)
+        RegisterEntry.objects.create(
+            serial_number=serial + index + 1,
+            booking=booking,
+            guest=guest,
+            room=booking.room,
+            arrival_at=now,
+            purpose=booking.purpose,
+            # The booking's payment is written once, against its first guest, so the column adds up.
+            amount_paid=paid if index == 0 else 0,
+            entered_by=manager,
+        )
+    audit.log(
+        "register.entered",
+        booking,
+        actor=manager,
+        after={"serials": [serial + 1, serial + len(guests)], "ids_verified": [str(g.pk) for g in guests]},
+    )
+    return booking
+
+
+@transaction.atomic
+def check_out(booking_id, manager):
+    booking = locked(booking_id)
+    booking = transition(booking, Status.CHECKED_OUT, actor=manager)
+    booking.register_entries.filter(departure_at__isnull=True).update(departure_at=timezone.now())
+    return booking
+
+
 # --- Scheduled housekeeping -------------------------------------------------
 def expire_stale(now=None):
     """Requests not approved within the hold, or not paid in time after approval, expire and free their dates."""
@@ -201,6 +276,8 @@ def expire_stale(now=None):
 
 def mark_no_shows(now=None):
     """A booking not checked in by noon on the day after check-in becomes a no-show."""
+    from apps.payments import services as payments
+
     now = timezone.localtime(now or timezone.now())
     count = 0
     candidates = Booking.objects.filter(status__in=[Status.CONFIRMED, Status.ALLOTTED], check_in__lt=now.date())
@@ -212,5 +289,6 @@ def mark_no_shows(now=None):
             booking = locked(pk)
             if booking.status in (Status.CONFIRMED, Status.ALLOTTED):
                 transition(booking, Status.NO_SHOW, room=None)
+                payments.on_no_show(booking)
                 count += 1
     return count

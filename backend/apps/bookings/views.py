@@ -4,6 +4,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.http import Http404
 from rest_framework import mixins, status, viewsets
+from rest_framework import serializers as drf_serializers
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -31,7 +32,7 @@ def visible_bookings(request):
     """The only bookings a user can ever load: their own, those routed to them, or all for the desk."""
     user = request.user
     qs = Booking.objects.select_related("requester", "room_type", "room", "student_link").prefetch_related(
-        "guests", "documents__guest", "approvals__approver"
+        "guests", "documents__guest", "approvals__approver", "payments__refunds"
     )
     if is_manager(request):
         return qs
@@ -158,7 +159,16 @@ class BookingViewSet(
     @action(detail=True, methods=["post"])
     def cancel(self, request, pk=None):
         booking = self.get_object()
-        return self._read(services.cancel(booking.pk, request.user, by_staff=is_manager(request)))
+        staff = is_manager(request)
+        return self._read(
+            services.cancel(
+                booking.pk,
+                request.user,
+                by_staff=staff,
+                full_refund=staff and bool(request.data.get("full_refund")),
+                reason=str(request.data.get("reason", ""))[:500],
+            )
+        )
 
     @action(detail=True, methods=["post"], parser_classes=[JSONParser])
     def decide(self, request, pk=None):
@@ -179,6 +189,17 @@ class BookingViewSet(
     def allot(self, request, pk=None):
         booking = self.get_object()
         return self._read(services.allot(booking.pk, request.user, request.data.get("room")))
+
+    @action(detail=True, methods=["post"], url_path="check-in", permission_classes=[IsManager])
+    def check_in(self, request, pk=None):
+        guests = drf_serializers.ListField(child=drf_serializers.UUIDField(), allow_empty=False).run_validation(
+            request.data.get("guests", [])
+        )
+        return self._read(services.check_in(self.get_object().pk, request.user, guests))
+
+    @action(detail=True, methods=["post"], url_path="check-out", permission_classes=[IsManager])
+    def check_out(self, request, pk=None):
+        return self._read(services.check_out(self.get_object().pk, request.user))
 
 
 class DocumentDownloadView(APIView):

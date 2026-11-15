@@ -12,20 +12,6 @@ from .conftest import booking_payload, client_for, make_booking, make_user, subm
 pytestmark = pytest.mark.django_db
 
 
-@pytest.fixture
-def clients(requester, external, approver, manager, admin):
-    return {
-        "anon": APIClient(),
-        "requester": client_for(requester),
-        "external": client_for(external),
-        "approver": client_for(approver),
-        "manager": client_for(manager),
-        "manager_no_mfa": client_for(make_user(Role.MANAGER, "mgr2"), mfa=False),
-        "admin": client_for(admin),
-        "admin_no_mfa": client_for(make_user(Role.ADMIN, "adm2"), mfa=False),
-    }
-
-
 MANAGER_ONLY = {"manager", "admin"}
 ADMIN_ONLY = {"admin"}
 

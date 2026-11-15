@@ -14,3 +14,4 @@ django-redis
 Pillow
 gunicorn
 requests
+weasyprint

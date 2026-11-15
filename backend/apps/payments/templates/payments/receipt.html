@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Receipt {{ booking.reference }}</title>
+<style>
+  @page { size: A4; margin: 18mm; }
+  body { font-family: "DejaVu Sans", sans-serif; font-size: 10.5pt; color: #1e293b; }
+  h1 { font-size: 18pt; margin: 0; }
+  h2 { font-size: 11pt; margin: 18pt 0 6pt; color: #475569; text-transform: uppercase; letter-spacing: .04em; }
+  .head { border-bottom: 1.5pt solid #1e293b; padding-bottom: 8pt; margin-bottom: 4pt; }
+  .muted { color: #64748b; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 5pt 6pt; border-bottom: .5pt solid #cbd5e1; vertical-align: top; }
+  th { font-weight: normal; color: #64748b; width: 34%; }
+  .lines th { width: auto; font-weight: bold; color: #1e293b; }
+  .num { text-align: right; white-space: nowrap; }
+  .total td { font-weight: bold; border-top: 1pt solid #1e293b; border-bottom: none; }
+  .foot { margin-top: 24pt; font-size: 9pt; color: #64748b; }
+</style>
+</head>
+<body>
+  <div class="head">
+    <h1>{{ site_name }}</h1>
+    <div class="muted">Payment receipt</div>
+  </div>
+
+  <table>
+    <tr><th>Booking ID</th><td>{{ booking.reference }}</td></tr>
+    <tr><th>Booked by</th><td>{{ booked_by }}</td></tr>
+    <tr><th>Guests</th><td>{{ guests|join:", " }}</td></tr>
+    <tr><th>Stay</th><td>{{ booking.check_in|date:"j M Y" }} to {{ booking.check_out|date:"j M Y" }} ({{ booking.nights }} night{{ booking.nights|pluralize }})</td></tr>
+    <tr><th>Room</th><td>{{ booking.room_type.name }}{% if booking.room %}, room {{ booking.room.number }}{% endif %}</td></tr>
+    <tr><th>Stay type</th><td>{{ booking.get_category_display }}</td></tr>
+    <tr><th>Tariff</th><td>Rs {{ booking.price_per_night }} per night</td></tr>
+  </table>
+
+  <h2>Payments</h2>
+  <table class="lines">
+    <tr><th>Date</th><th>Paid through</th><th>Payment reference</th><th class="num">Amount</th></tr>
+    {% for payment in payments %}
+    <tr>
+      <td>{{ payment.paid_at|date:"j M Y, g:i A" }}</td>
+      <td>{{ payment.get_gateway_display }}</td>
+      <td>{{ payment.gateway_payment_id|default:payment.order_id }}</td>
+      <td class="num">Rs {{ payment.amount }}</td>
+    </tr>
+    {% endfor %}
+    {% for refund in refunds %}
+    <tr>
+      <td>{{ refund.processed_at|date:"j M Y, g:i A" }}</td>
+      <td>Refund</td>
+      <td>{{ refund.gateway_refund_id|default:"Returned by the guesthouse office" }}</td>
+      <td class="num">- Rs {{ refund.amount }}</td>
+    </tr>
+    {% endfor %}
+    <tr class="total"><td colspan="3">{% if refunds %}Net amount paid{% else %}Amount paid{% endif %}</td><td class="num">Rs {{ net_paid }}</td></tr>
+  </table>
+
+  <p class="foot">
+    This receipt was produced by the {{ site_name }} booking system on {{ now|date:"j M Y, g:i A" }} and needs no
+    signature. Quote the booking ID in any question about this payment.
+  </p>
+</body>
+</html>

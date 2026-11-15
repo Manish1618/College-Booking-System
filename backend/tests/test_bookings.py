@@ -15,7 +15,7 @@ from apps.bookings.state import TRANSITIONS
 from apps.payments.models import Payment
 from apps.rooms.models import Room, Tariff
 
-from .conftest import booking_payload, client_for, make_booking, submitted_booking, upload
+from .conftest import booking_payload, client_for, make_booking, pay, submitted_booking, upload
 
 pytestmark = pytest.mark.django_db
 
@@ -45,7 +45,7 @@ def test_official_stay_end_to_end(requester, approver, manager, room_type, stay)
     pay_window = datetime.fromisoformat(booking["hold_expires_at"]) - timezone.now()
     assert timedelta(hours=23) < pay_window <= timedelta(hours=24)
 
-    booking = guest.post(f"{base}/pay", {"gateway": "dev"}, format="json").data
+    booking = pay(guest, booking["id"])
     assert booking["status"] == "CONFIRMED" and booking["hold_expires_at"] is None
     payment = Payment.objects.get(booking_id=booking["id"])
     assert (payment.status, payment.amount) == ("PAID", Decimal("2000.00"))
