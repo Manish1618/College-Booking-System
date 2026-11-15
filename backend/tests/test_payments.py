@@ -546,7 +546,8 @@ def test_goodwill_refund_manual_settlement_and_withdrawal(clients, paid):
     assert clients["requester"].post(url, {"amount": "100", "reason": "x"}, format="json").status_code == 403
     assert desk.post(url, {"amount": "100"}, format="json").status_code == 400  # a reason is required
     assert desk.post(url, {"amount": "2000.01", "reason": "Hot water was off"}, format="json").status_code == 400
-    assert desk.post(url, {"amount": "abc", "reason": "Hot water was off"}, format="json").status_code == 400
+    for bad in ("abc", "NaN", "Infinity", "-5", "1e999999", None):
+        assert desk.post(url, {"amount": bad, "reason": "Hot water was off"}, format="json").status_code == 400, bad
     booking = desk.post(url, {"amount": "300", "reason": "Hot water was off"}, format="json").data
     first = booking["payment"]["refunds"][0]
     assert (first["amount"], first["status"]) == ("300.00", "DUE") and booking["payment"]["refundable"] == "1700.00"
@@ -638,16 +639,16 @@ def test_refund_with_no_answer_is_never_assumed_to_have_failed(requester, manage
     refund = Refund.objects.get()
     razorpay.on("POST", "/payments/pay_XYZ/refund", requests.Timeout())
     result = desk.post(f"/api/refunds/{refund.pk}/issue").data
-    assert result["status"] == "PROCESSING" and "could not be reached" in result["failure_reason"]
+    assert result["status"] == "PROCESSING" and "checked again automatically" in result["failure_reason"]
     assert desk.post(f"/api/refunds/{refund.pk}/issue").status_code == 409  # no second attempt while unknown
 
-    Refund.objects.filter(pk=refund.pk).update(created_at=timezone.now() - timedelta(minutes=10))
+    Refund.objects.filter(pk=refund.pk).update(issued_at=timezone.now() - timedelta(minutes=10))
     # The gateway did receive it: the scheduled check finds it by the note and settles it.
     found = {"items": [{"id": "rfnd_7", "status": "processed", "notes": {"refund": str(refund.pk)}}]}
     razorpay.on("GET", "/payments/pay_XYZ/refunds", found)
     assert services.reconcile() == 1
     refund.refresh_from_db()
-    assert (refund.status, refund.gateway_refund_id) == ("PROCESSED", "rfnd_7")
+    assert (refund.status, refund.gateway_refund_id, refund.failure_reason) == ("PROCESSED", "rfnd_7", "")
 
 
 def test_refund_the_gateway_never_received_becomes_retryable(requester, manager, approved, razorpay):
@@ -657,8 +658,11 @@ def test_refund_the_gateway_never_received_becomes_retryable(requester, manager,
     refund = Refund.objects.get()
     razorpay.on("POST", "/payments/pay_XYZ/refund", requests.ConnectionError())
     desk.post(f"/api/refunds/{refund.pk}/issue")
-    Refund.objects.filter(pk=refund.pk).update(created_at=timezone.now() - timedelta(minutes=10))
+    Refund.objects.filter(pk=refund.pk).update(issued_at=timezone.now() - timedelta(minutes=10))
     razorpay.on("GET", "/payments/pay_XYZ/refunds", {"items": []})
+    assert services.reconcile() == 0  # too soon to conclude that the request never arrived
+    assert Refund.objects.get().status == "PROCESSING"
+    Refund.objects.filter(pk=refund.pk).update(issued_at=timezone.now() - timedelta(minutes=40))
     assert services.reconcile() == 1
     refund.refresh_from_db()
     assert refund.status == "FAILED" and "Issue it again" in refund.failure_reason
@@ -685,7 +689,7 @@ def test_mobikwik_refund_request_and_status(client, requester, manager, approved
     }  # fmt: skip
     assert call.headers["checksum"] == sign("zaak-secret", call.data)
 
-    Refund.objects.filter(pk=refund.pk).update(created_at=timezone.now() - timedelta(minutes=10))
+    Refund.objects.filter(pk=refund.pk).update(issued_at=timezone.now() - timedelta(minutes=10))
     done = [{"merchantRefId": refund.pk.hex, "amount": "50000", "refundStatus": "SUCCESS"}]
     mobikwik.on("POST", "/api/payments/v1/status", zaakpay_status(payment, "4", refunds=done))
     assert services.reconcile() == 1

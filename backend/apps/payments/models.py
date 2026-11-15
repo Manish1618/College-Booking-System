@@ -71,6 +71,7 @@ class Refund(models.Model):
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    issued_at = models.DateTimeField(null=True, blank=True)  # when a manager last sent it
     processed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:

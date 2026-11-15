@@ -166,6 +166,8 @@ export interface PaymentSummary {
   refunds: Refund[];
   refundable: string;
   refund_on_cancel: { percent: number; amount: string; full: string } | null;
+  /** An order is open with a gateway and its outcome is not known yet. */
+  pending: boolean;
   receipt: boolean;
 }
 

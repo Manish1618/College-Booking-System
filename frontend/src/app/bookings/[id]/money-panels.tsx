@@ -70,6 +70,11 @@ export function PayPanel({ booking, justReturned }: { booking: Booking; justRetu
         const latest = await api<Booking>(`/bookings/${booking.id}/payment-status`, { method: "POST" });
         if (stopped) return;
         if (latest.status !== "APPROVED") return void refresh();
+        if (latest.payment && !latest.payment.pending) {
+          // The gateway has answered and it was not a success.
+          setError("The payment did not go through. No money was taken. You can try again.");
+          return setPhase("choose");
+        }
       } catch {
         // A failed check is not a failed payment. Keep waiting.
       }

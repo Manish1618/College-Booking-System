@@ -61,5 +61,7 @@ def payment_summary(booking, *, staff):
         "refunds": RefundSerializer(sorted(refunds, key=lambda r: r.created_at), many=True).data,
         "refundable": str(sum((services.refundable(p) for p in took_money), services.ZERO)),
         "refund_on_cancel": refund_on_cancel,
+        # True while an order is open with a real gateway, so the pay screen knows to keep waiting.
+        "pending": any(p.status == Payment.State.CREATED and p.gateway != Payment.Gateway.DEV for p in payments),
         "receipt": bool(took_money),
     }

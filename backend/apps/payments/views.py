@@ -38,7 +38,10 @@ def _amount(value, *, required=True):
     if value in (None, "") and not required:
         return None
     try:
-        return Decimal(str(value)).quantize(services.CENT)
+        amount = Decimal(str(value))
+        if not amount.is_finite():  # "NaN" and "Infinity" parse as decimals
+            raise InvalidOperation
+        return amount.quantize(services.CENT)
     except (InvalidOperation, ValueError) as exc:
         raise ValidationError({"amount": ["Enter an amount in rupees."]}) from exc
 

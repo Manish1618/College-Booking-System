@@ -26,6 +26,7 @@ from .models import Payment, Refund, WebhookEvent
 
 log = logging.getLogger(__name__)
 ZERO = Decimal("0.00")
+NO_ANSWER = "No answer from the gateway yet. This refund will be checked again automatically."
 CENT = Decimal("0.01")
 
 
@@ -292,7 +293,7 @@ def issue(refund_id, manager, *, amount=None, manual=False, note=""):
         if manual and not note:
             raise ValidationError({"note": ["Say how the money was returned."]})
         refund.amount, refund.manual, refund.note, refund.issued_by = amount, manual, note[:255], manager
-        refund.status, refund.failure_reason = Refund.State.PROCESSING, ""
+        refund.status, refund.failure_reason, refund.issued_at = Refund.State.PROCESSING, "", timezone.now()
         refund.save()
         audit.log("refund.issued", refund, actor=manager, after={"amount": amount, "manual": manual, "note": note})
     # The gateway call happens with nothing locked. The refund is already PROCESSING, so it cannot be
@@ -302,9 +303,9 @@ def issue(refund_id, manager, *, amount=None, manual=False, note=""):
     gateway = gateways.adapter(refund.payment.gateway)
     try:
         gateway_refund_id, state = gateway.refund(refund.payment, refund)
-    except GatewayUnreachable as exc:
+    except GatewayUnreachable:
         # Unknown outcome: the money may have moved. Leave it PROCESSING for reconcile() to find out.
-        return _settle(refund.pk, gateways.PENDING, reason=str(exc))
+        return _settle(refund.pk, gateways.PENDING, reason=NO_ANSWER)
     except GatewayError as exc:
         return _settle(refund.pk, gateways.REJECTED, reason=str(exc))
     return _settle(refund.pk, state, gateway_refund_id=gateway_refund_id)
@@ -338,8 +339,8 @@ def _settle(refund_id, state, *, gateway_refund_id="", reason=""):
             if payment.refunded_amount >= payment.amount:
                 payment.status = Payment.State.REFUNDED
             payment.save(update_fields=["refunded_amount", "status"])
-            refund.status, refund.processed_at = Refund.State.PROCESSED, timezone.now()
-            fields += ["status", "processed_at"]
+            refund.status, refund.processed_at, refund.failure_reason = Refund.State.PROCESSED, timezone.now(), ""
+            fields += ["status", "processed_at", "failure_reason"]
             audit.log("refund.processed", refund, actor=refund.issued_by, after={"amount": refund.amount})
             _notify(refund, "processed")
         elif state == gateways.REJECTED:
@@ -392,7 +393,7 @@ def reconcile(now=None):
     for payment in open_orders:
         changed += check(payment)
     waiting = Refund.objects.filter(
-        status=Refund.State.PROCESSING, manual=False, created_at__lte=now - timedelta(minutes=5)
+        status=Refund.State.PROCESSING, manual=False, issued_at__lte=now - timedelta(minutes=5)
     ).select_related("payment")
     for refund in waiting:
         try:
@@ -400,9 +401,13 @@ def reconcile(now=None):
         except GatewayError:
             continue
         if state == gateways.UNKNOWN:
-            # The request never reached the gateway, so nothing moved and it is safe to issue again.
-            _settle(refund.pk, gateways.REJECTED, reason="The gateway has no record of this refund. Issue it again.")
-            changed += 1
+            if refund.issued_at <= now - timedelta(minutes=30):
+                # Half an hour on, the gateway still has no trace of the request. Nothing moved, so it
+                # is safe to send again.
+                _settle(
+                    refund.pk, gateways.REJECTED, reason="The gateway has no record of this refund. Issue it again."
+                )
+                changed += 1
         elif state != gateways.PENDING:
             _settle(refund.pk, state, gateway_refund_id=refund.gateway_refund_id)
             changed += 1
@@ -415,9 +420,12 @@ def verify_recent(now=None):
     Returns the payments the gateway does not agree with. Each is logged for staff to look into.
     """
     now = now or timezone.now()
-    recent = Payment.objects.filter(
-        status__in=[Payment.State.PAID, Payment.State.REFUNDED], paid_at__gte=now - timedelta(hours=36)
-    ).exclude(gateway=Payment.Gateway.DEV)
+    # Payments with a refund are left out: the gateway no longer reports those as plainly paid.
+    recent = (
+        Payment.objects.filter(status=Payment.State.PAID, refunded_amount=0, paid_at__gte=now - timedelta(hours=36))
+        .exclude(gateway=Payment.Gateway.DEV)
+        .exclude(refunds__status=Refund.State.PROCESSING)
+    )
     mismatched = []
     for payment in recent:
         try:

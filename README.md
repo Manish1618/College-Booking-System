@@ -228,8 +228,8 @@ The PRD leaves these open. Each has a working default so the build is not blocke
   Content Security Policy for the Next.js pages belong to the hardening phase.
 - SMS goes to the log until a provider is chosen.
 - Razorpay and MobiKwik have not been run against real accounts (see "Payments" above).
-- A payment that arrives with the wrong amount is marked failed and logged, with no refund proposed,
-  because the amount actually taken is not known to be ours to return. Staff settle it by hand.
+- A payment reported with an amount different from the order is marked failed and logged, and no refund
+  is proposed for it. Staff check it in the gateway's dashboard and settle it by hand.
 - A refund made in a gateway's own dashboard is not picked up. Record it on the booking as returned by hand.
 - Availability is counted per room type. Heavy use of manually chosen rooms can, in rare cases, leave
   a type with a free night-by-night count but no single room free for the whole stay; the manager would
