@@ -87,7 +87,7 @@ export default function WebsitePage() {
       </PageTitle>
       {content.isLoading && <Loading />}
       {content.error && <Notice tone="error">{content.error.message}</Notice>}
-      {content.data && <WebsiteForm key={content.data.updated_at} saved={content.data} />}
+      {content.data && <WebsiteForm saved={content.data} />}
     </>
   );
 }
@@ -105,9 +105,14 @@ function WebsiteForm({ saved }: { saved: SiteContent }) {
         e.preventDefault();
         setDone(false);
         const body = Object.fromEntries(changed.map((f) => [f.key, draft[f.key].trim()]));
-        if (await run(() => api("/site-content", { method: "PATCH", body }))) setDone(true);
+        // The boxes are locked while this runs, so the draft cannot move under the save.
+        if (await run(() => api("/site-content", { method: "PATCH", body }))) {
+          setDraft((current) => ({ ...current, ...body }));
+          setDone(true);
+        }
       }}
     >
+      <fieldset disabled={busy} className="space-y-6 disabled:opacity-60">
       {GROUPS.map((group) => (
         <Card key={group.title}>
           <h2 className="text-2xl">{group.title}</h2>
@@ -134,6 +139,7 @@ function WebsiteForm({ saved }: { saved: SiteContent }) {
           </div>
         </Card>
       ))}
+      </fieldset>
       {error && <Notice tone="error">{error}</Notice>}
       {done && (
         <Notice tone="success">
