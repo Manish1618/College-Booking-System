@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDown, ArrowRight } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, ArrowUpRight } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -10,24 +10,16 @@ import { DayPicker, type DateRange } from "react-day-picker";
 
 import dynamic from "next/dynamic";
 
-import Endless, { type EndlessSlide } from "@/components/ui/endless";
 import { RoomShowcase } from "@/components/room-showcase";
 import { SectionHead } from "@/components/section-head";
 import { primaryLink, secondaryLink } from "@/components/ui";
 import { api, fmtDate, inr, isoDate } from "@/lib/api";
-import { useSiteContent } from "@/lib/hooks";
+import { lines, useSiteContent } from "@/lib/hooks";
 import type { Availability, Photo, RoomType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 // three.js is large and browser-only: load the model after the page, never on the server.
 const GuesthouseModel = dynamic(() => import("@/components/guesthouse-model"), { ssr: false });
-
-/** Shown in the corridor while room types load, or if none are open yet. */
-const PLACEHOLDER_SLIDES: EndlessSlide[] = [
-  { label: "Quiet rooms on campus", sublabel: "College Guesthouse" },
-  { label: "Approved by the college", sublabel: "Before you pay" },
-  { label: "Book in minutes", sublabel: "Online" },
-];
 
 const WIDE = "(min-width: 768px)";
 function subscribeWide(notify: () => void) {
@@ -59,18 +51,6 @@ export default function HomePage() {
   const byType = useMemo(() => new Map(availability.data?.results.map((r) => [r.room_type, r])), [availability.data]);
   const types = useMemo(() => roomTypes.data ?? [], [roomTypes.data]);
   const bookHref = (typeId: string) => `/book?type=${typeId}&check_in=${checkIn}&check_out=${checkOut}`;
-
-  const slides = useMemo<EndlessSlide[]>(() => {
-    const fromTypes = types.map((type) => {
-      const cover = coverOf(type);
-      return {
-        src: cover?.urls["960"] ?? cover?.urls["480"],
-        label: type.name,
-        sublabel: `${inr(type.price_per_night)} / night`,
-      };
-    });
-    return fromTypes.length ? fromTypes : PLACEHOLDER_SLIDES;
-  }, [types]);
 
   const fromPrice = types.reduce<number | null>((min, t) => {
     const price = Number(t.price_per_night);
@@ -284,7 +264,11 @@ export default function HomePage() {
                 >
                   <p className="font-display text-2xl leading-none text-gold tabular-nums md:col-span-1 md:text-3xl">{String(index + 1).padStart(2, "0")}</p>
                   <div className="md:col-span-5">
-                    <h3 className="text-3xl leading-none text-foreground md:text-4xl">{type.name}</h3>
+                    <h3 className="text-3xl leading-none text-foreground md:text-4xl">
+                      <Link href={`/rooms/${type.id}`} className="underline-offset-[6px] decoration-1 hover:underline">
+                        {type.name}
+                      </Link>
+                    </h3>
                     {type.description && <p className="mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">{type.description}</p>}
                   </div>
                   <div className="md:col-span-3">
@@ -358,29 +342,69 @@ export default function HomePage() {
         </ol>
       </section>
 
-      <section aria-labelledby="walk-heading" className="relative border-t border-border">
-        <h2 id="walk-heading" className="sr-only">
-          Walk through the rooms
-        </h2>
-        <Endless
-          slides={slides}
-          height="min(70svh, 640px)"
-          aria-label="Rooms at the guesthouse"
-          title={
-            <span className="block border border-border bg-background px-8 py-9 md:px-14 md:py-12">
-              <span className="label block text-muted-foreground">The corridor</span>
-              <span className="mt-4 block font-display text-4xl leading-none text-foreground md:text-6xl">
-                Every room, one <em className="text-gold">request</em> away
-              </span>
-            </span>
-          }
-        >
-          <div className="absolute inset-x-0 bottom-10 flex justify-center px-4">
-            <button type="button" onClick={scrollToDates} className={primaryLink}>
+      <section id="visit" aria-labelledby="visit-heading" className="mx-auto w-full max-w-[88rem] scroll-mt-16 border-t border-border px-4 pb-20 md:px-8 md:pb-28">
+        <div className="-mt-px">
+          <SectionHead no="05" kicker="Visiting" id="visit-heading" title="The house, and how to find it" />
+        </div>
+        <div className="mt-12 grid gap-x-10 gap-y-12 md:grid-cols-12">
+          <div className="md:col-span-5 md:col-start-4">
+            {site.about && <p className="font-display text-2xl leading-snug text-foreground md:text-3xl">{site.about}</p>}
+            {site.directions && <p className="mt-6 max-w-md text-sm leading-relaxed text-muted-foreground">{site.directions}</p>}
+            {site.map_url.startsWith("https://") && (
+              <a href={site.map_url} target="_blank" rel="noreferrer" className={cn(secondaryLink, "mt-6")}>
+                Open in Maps
+                <ArrowUpRight aria-hidden="true" className="size-3.5" />
+              </a>
+            )}
+          </div>
+          <dl className="border-t border-border text-sm md:col-span-4">
+            {[
+              ["Check-in", site.checkin_time],
+              ["Check-out", site.checkout_time],
+              ["Address", site.address],
+              ["Phone", site.contact_phone],
+              ["Email", site.contact_email],
+            ]
+              .filter(([, value]) => value)
+              .map(([label, value]) => (
+                <div key={label} className="flex items-baseline justify-between gap-6 border-b border-border py-3.5">
+                  <dt className="label text-muted-foreground">{label}</dt>
+                  <dd className="text-right text-foreground">{value}</dd>
+                </div>
+              ))}
+          </dl>
+          {[
+            ["Shared facilities", lines(site.facilities)] as const,
+            ["House rules", lines(site.house_rules)] as const,
+          ]
+            .filter(([, items]) => items.length > 0)
+            .map(([title, items], i) => (
+              <div key={title} className={cn("md:col-span-4", i === 0 ? "md:col-start-4" : "")}>
+                <h3 className="label font-sans text-gold">{title}</h3>
+                <ul className="mt-4 border-t border-border text-sm">
+                  {items.map((item) => (
+                    <li key={item} className="border-b border-border py-3 leading-relaxed text-foreground/85">
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+        </div>
+      </section>
+
+      <section aria-labelledby="closing-heading" className="border-t border-border">
+        <div className="mx-auto grid w-full max-w-[88rem] gap-8 px-4 py-20 md:grid-cols-12 md:items-end md:px-8 md:py-28">
+          <h2 id="closing-heading" className="text-5xl leading-[0.95] tracking-[-0.02em] text-foreground md:col-span-8 md:text-8xl">
+            Your room is one <em className="text-gold">request</em> away.
+          </h2>
+          <div className="md:col-span-4 md:justify-self-end">
+            <button type="button" onClick={scrollToDates} className={cn(primaryLink, "min-h-14 px-8")}>
               Check availability
+              <ArrowUp aria-hidden="true" className="size-3.5" />
             </button>
           </div>
-        </Endless>
+        </div>
       </section>
     </div>
   );

@@ -144,6 +144,28 @@ class SiteContent(models.Model):
     footer_about = models.TextField(
         max_length=300, default="Rooms on campus for visiting faculty, families of students and guests of the college."
     )
+    about = models.TextField(
+        max_length=600,
+        blank=True,
+        default=(
+            "A small guesthouse inside the campus, kept for visiting faculty, examiners, families of students "
+            "and guests of the college."
+        ),
+    )
+    checkin_time = models.CharField(max_length=40, blank=True, default="From 12 noon")
+    checkout_time = models.CharField(max_length=40, blank=True, default="By 11 am")
+    facilities = models.TextField(max_length=600, blank=True, help_text="One per line.")
+    house_rules = models.TextField(
+        max_length=800,
+        blank=True,
+        help_text="One per line.",
+        default=(
+            "A government photo ID is needed for each guest at check-in.\n"
+            "A booking is confirmed only after the college approves it and payment is made."
+        ),
+    )
+    directions = models.TextField(max_length=400, blank=True)
+    map_url = models.URLField(blank=True)
     contact_phone = models.CharField(max_length=40, blank=True)
     contact_email = models.EmailField(blank=True)
     address = models.CharField(max_length=200, blank=True)

@@ -75,7 +75,7 @@ export function Card({ children, className }: { children: ReactNode; className?:
 
 export function Notice({ tone = "info", children }: { tone?: "info" | "error" | "success"; children: ReactNode }) {
   const styles = {
-    info: "border-sky-200 bg-sky-50 text-sky-900",
+    info: "border-slate-200 bg-card text-slate-800",
     error: "border-red-200 bg-red-50 text-red-800",
     success: "border-emerald-200 bg-emerald-50 text-emerald-900",
   }[tone];
@@ -118,6 +118,14 @@ export function PageTitle({ title, children }: { title: string; children?: React
   );
 }
 
+/** A quiet placeholder while a page's data loads: a few hairline bars that breathe. */
 export function Loading() {
-  return <p className="py-8 text-center text-slate-500">Loading…</p>;
+  return (
+    <div role="status" className="space-y-4 py-10">
+      <span className="sr-only">Loading…</span>
+      {["w-1/3 h-9", "w-2/3 h-4", "w-1/2 h-4", "w-full h-28"].map((shape) => (
+        <div key={shape} aria-hidden="true" className={`skeleton ${shape}`} />
+      ))}
+    </div>
+  );
 }

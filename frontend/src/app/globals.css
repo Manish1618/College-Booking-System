@@ -210,10 +210,45 @@ body {
 }
 
 h1, h2, h3 {
-  font-family: var(--font-display);
   /* The display face has one weight; a heavier utility class would only smear it. */
   font-weight: 400;
-  letter-spacing: -0.015em;
+}
+/* In the base layer, so a heading used as a small label can opt out with font-sans. */
+@layer base {
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.015em;
+  }
+}
+/* Default sizes for headings that set none, kept below utilities so any text-* class wins. */
+@layer base {
+  h2 {
+    font-size: 1.625rem;
+    line-height: 1.15;
+  }
+  h3 {
+    font-size: 1.3125rem;
+    line-height: 1.2;
+  }
+}
+/* File pickers: the browser's grey button, restyled as a secondary button. */
+input[type="file"]::file-selector-button {
+  margin-right: 0.875rem;
+  min-height: 2.5rem;
+  border: 1px solid var(--color-input);
+  border-radius: 2px;
+  background: transparent;
+  padding: 0 1rem;
+  color: inherit;
+  font: inherit;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+input[type="file"]::file-selector-button:hover {
+  border-color: currentColor;
 }
 
 ::selection {
@@ -233,4 +268,35 @@ h1, h2, h3 {
 :focus-visible {
   outline: 2px solid #0f6b6b;
   outline-offset: 2px;
+}
+
+/* Loading placeholders: flat bars that fade gently, still under reduced motion. */
+.skeleton {
+  border-radius: 2px;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  animation: skeleton-breathe 1.6s ease-in-out infinite;
+}
+@keyframes skeleton-breathe {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Pages settle in rather than snap. */
+@media screen and (prefers-reduced-motion: no-preference) {
+  #main > * {
+    animation: page-in 0.45s cubic-bezier(0.22, 0.85, 0.3, 1) backwards;
+  }
+}
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
 import { api } from "@/lib/api";
+import { Mark } from "@/components/mark";
 import { isAdmin, isApprover, isManager, splitName, useMe, useSiteContent } from "@/lib/hooks";
 
 export function Header() {
@@ -37,8 +38,11 @@ export function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur-md print:hidden">
       <div className="mx-auto flex max-w-[88rem] flex-wrap items-center gap-x-8 gap-y-2 px-4 py-4 md:px-8">
-        <Link href="/" className="font-display text-2xl leading-none text-foreground">
+        <Link href="/" className="flex items-center gap-2.5 font-display text-2xl leading-none text-foreground">
+          <Mark className="size-6 text-gold" />
+          <span>
           {first} {accent && <span className="italic text-gold">{accent}</span>}
+          </span>
         </Link>
         <nav aria-label="Main" className="order-last flex basis-full flex-wrap gap-x-6 gap-y-1 sm:order-none sm:flex-1 sm:basis-auto">
           {links.map((link) => {

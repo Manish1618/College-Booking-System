@@ -10,7 +10,7 @@ import { isManager, useAction, useMe } from "@/lib/hooks";
 import type { SiteContent } from "@/lib/types";
 
 type Key = Exclude<keyof SiteContent, "updated_at">;
-type FieldSpec = { key: Key; label: string; hint?: string; max: number; long?: boolean; optional?: boolean; type?: string };
+type FieldSpec = { key: Key; label: string; hint?: string; max: number; long?: boolean; optional?: boolean; type?: string; rows?: number };
 
 /** The screen is generated from this list: each group is a panel, each entry a box to type in. */
 const GROUPS: { title: string; about: string; fields: FieldSpec[] }[] = [
@@ -41,6 +41,19 @@ const GROUPS: { title: string; about: string; fields: FieldSpec[] }[] = [
       { key: "step2_body", label: "Second step, in a sentence", max: 300, long: true },
       { key: "step3_title", label: "Last step", max: 60 },
       { key: "step3_body", label: "Last step, in a sentence", max: 300, long: true },
+    ],
+  },
+  {
+    title: "Visiting",
+    about: "The section near the bottom of the home page, and the notes on each room's page. Empty boxes are left out.",
+    fields: [
+      { key: "about", label: "About the guesthouse", max: 600, long: true, optional: true },
+      { key: "checkin_time", label: "Check-in time", max: 40, optional: true },
+      { key: "checkout_time", label: "Check-out time", max: 40, optional: true },
+      { key: "facilities", label: "Shared facilities", hint: "One per line, for example: Dining hall, Wi-Fi, Power backup", max: 600, long: true, optional: true, rows: 4 },
+      { key: "house_rules", label: "House rules", hint: "One per line.", max: 800, long: true, optional: true, rows: 4 },
+      { key: "directions", label: "How to reach us", hint: "Nearest gate, parking, landmarks.", max: 400, long: true, optional: true },
+      { key: "map_url", label: "Map link", hint: "Paste a Google Maps link starting with https://", max: 200, optional: true, type: "url" },
     ],
   },
   {
@@ -113,7 +126,7 @@ function WebsiteForm({ saved }: { saved: SiteContent }) {
               return (
                 <div key={f.key} className={f.long ? "sm:col-span-2" : undefined}>
                   <Field label={f.label} hint={f.hint}>
-                    {f.long ? <textarea rows={2} {...props} className={`${inputClass} py-2`} /> : <Input type={f.type ?? "text"} {...props} />}
+                    {f.long ? <textarea rows={f.rows ?? 2} {...props} className={`${inputClass} py-2`} /> : <Input type={f.type ?? "text"} {...props} />}
                   </Field>
                 </div>
               );

@@ -68,3 +68,8 @@ class SiteContentSerializer(WritesOnlyChangedFields, serializers.ModelSerializer
         model = SiteContent
         exclude = ["id"]
         read_only_fields = ["updated_at"]
+
+    def validate_map_url(self, value):
+        if value and not value.startswith("https://"):
+            raise serializers.ValidationError("Use a link that starts with https://")
+        return value

@@ -363,6 +363,13 @@ export interface SiteContent {
   step3_title: string;
   step3_body: string;
   footer_about: string;
+  about: string;
+  checkin_time: string;
+  checkout_time: string;
+  facilities: string;
+  house_rules: string;
+  directions: string;
+  map_url: string;
   contact_phone: string;
   contact_email: string;
   address: string;

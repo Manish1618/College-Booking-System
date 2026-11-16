@@ -181,16 +181,14 @@ export default function BookPage() {
 
   return (
     <>
-      <PageTitle title={`Request: ${roomType.data.name}`}>
-        {fmtDate(checkIn)} to {fmtDate(checkOut)}
-        {slot && ` · ${quote.data?.nights} night(s) · ${inr(slot.amount)} total`}
-      </PageTitle>
+      <PageTitle title="Request your stay">Tell us who is staying and why. The college reviews every request before any payment.</PageTitle>
       {slot && slot.available < 1 && (
         <div className="mb-4">
           <Notice tone="error">This room type is no longer free for these dates.</Notice>
         </div>
       )}
-      <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-6">
+      <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_19rem]">
+      <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="min-w-0 space-y-6">
         <Card className="space-y-4">
           <h2 className="font-semibold">About the stay</h2>
           <fieldset>
@@ -307,11 +305,37 @@ export default function BookPage() {
           <Button type="submit" disabled={busy}>
             {busy ? "Submitting…" : "Submit request"}
           </Button>
-          <p className="text-sm text-slate-600">
-            Your dates are held for 48 hours while the request is reviewed. You pay only after approval.
-          </p>
         </div>
       </form>
+      <aside aria-label="Your stay" className="order-first lg:order-none">
+        <div className="border border-border lg:sticky lg:top-24">
+          <div className="border-b border-border p-5">
+            <p className="label text-gold">Your stay</p>
+            <p className="mt-3 font-display text-4xl leading-none text-foreground">{roomType.data.name}</p>
+          </div>
+          <dl className="px-5 text-sm">
+            {[
+              ["Arrive", fmtDate(checkIn)],
+              ["Leave", fmtDate(checkOut)],
+              ["Nights", quote.data ? String(quote.data.nights) : "…"],
+              ["Per night", slot ? inr(slot.price_per_night) : "…"],
+            ].map(([label, value]) => (
+              <div key={label} className="flex items-baseline justify-between gap-4 border-b border-border py-3">
+                <dt className="label text-muted-foreground">{label}</dt>
+                <dd className="tabular-nums text-foreground">{value}</dd>
+              </div>
+            ))}
+            <div className="flex items-baseline justify-between gap-4 py-4">
+              <dt className="label text-muted-foreground">Total</dt>
+              <dd className="font-display text-4xl leading-none text-foreground">{slot ? inr(slot.amount) : "…"}</dd>
+            </div>
+          </dl>
+          <p className="border-t border-border p-5 text-sm leading-relaxed text-muted-foreground">
+            Nothing is charged now. Your dates are held for 48 hours while the request is reviewed, and you pay only after approval.
+          </p>
+        </div>
+      </aside>
+      </div>
     </>
   );
 }

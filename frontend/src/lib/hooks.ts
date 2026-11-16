@@ -69,6 +69,13 @@ export const DEFAULT_SITE: SiteContent = {
   step3_title: "You pay, and arrive",
   step3_body: "Pay online once approved. Your room is allotted and waiting at the desk when you check in.",
   footer_about: "Rooms on campus for visiting faculty, families of students and guests of the college.",
+  about: "A small guesthouse inside the campus, kept for visiting faculty, examiners, families of students and guests of the college.",
+  checkin_time: "From 12 noon",
+  checkout_time: "By 11 am",
+  facilities: "",
+  house_rules: "A government photo ID is needed for each guest at check-in.\nA booking is confirmed only after the college approves it and payment is made.",
+  directions: "",
+  map_url: "",
   contact_phone: "",
   contact_email: "",
   address: "",
@@ -85,3 +92,6 @@ export function splitName(name: string): [string, string] {
   const words = name.trim().split(/\s+/);
   return words.length < 2 ? [name.trim(), ""] : [words.slice(0, -1).join(" "), words[words.length - 1]];
 }
+
+/** Text typed one item per line, as a list. */
+export const lines = (text: string) => text.split("\n").map((line) => line.trim()).filter(Boolean);

@@ -3,7 +3,8 @@
 import { ArrowRight } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useState } from "react";
 
 import { SectionHead } from "@/components/section-head";
 import { primaryLink } from "@/components/ui";
@@ -24,28 +25,18 @@ export interface RoomShowcaseProps {
 }
 
 /** Tier 1 to 5 by where the nightly price sits among the room types; it decides how richly the 3D room is furnished. */
-function tierOf(type: RoomType, types: RoomType[]) {
+export function tierOf(type: RoomType, types: RoomType[]) {
   const prices = [...new Set(types.map((t) => Number(t.price_per_night)).filter((p) => p > 0))].sort((a, b) => a - b);
   const index = prices.indexOf(Number(type.price_per_night));
   if (index < 0) return 1;
   return prices.length === 1 ? 3 : 1 + Math.round((index * 4) / (prices.length - 1));
 }
 
-const AUTOPLAY_MS = 6000;
-
 export function RoomShowcase({ types, slots, onBook }: RoomShowcaseProps) {
   const reduce = useReducedMotion();
   const [selected, setSelected] = useState(0);
-  const [touched, setTouched] = useState(false);
   const index = Math.min(selected, types.length - 1);
   const type = types[index];
-
-  // Walk through the rooms until the visitor takes over.
-  useEffect(() => {
-    if (touched || reduce || types.length < 2) return;
-    const timer = window.setInterval(() => setSelected((i) => (i + 1) % types.length), AUTOPLAY_MS);
-    return () => window.clearInterval(timer);
-  }, [touched, reduce, types.length]);
 
   if (!type) return null;
   const slot = slots.get(type.id);
@@ -53,17 +44,11 @@ export function RoomShowcase({ types, slots, onBook }: RoomShowcaseProps) {
   const photo = cover?.urls["1600"] ?? cover?.urls["960"] ?? cover?.urls["480"];
   const tier = tierOf(type, types);
   const facts = [`Sleeps ${type.capacity}`, ...type.amenities];
-  const pick = (i: number) => {
-    setTouched(true);
-    setSelected(i);
-  };
 
   return (
     <section
       aria-labelledby="showcase-heading"
       id="showcase" className="relative mx-auto w-full max-w-[88rem] scroll-mt-16 px-4 pt-20 md:px-8 md:pt-28"
-      onPointerDown={() => setTouched(true)}
-      onFocusCapture={() => setTouched(true)}
     >
       <SectionHead
         no="02"
@@ -125,7 +110,7 @@ export function RoomShowcase({ types, slots, onBook }: RoomShowcaseProps) {
                   id={`room-tab-${t.id}`}
                   aria-selected={active}
                   aria-controls="room-panel"
-                  onClick={() => pick(i)}
+                  onClick={() => setSelected(i)}
                   className={`group relative flex shrink-0 items-baseline gap-4 border-border px-5 py-4 text-left transition-colors lg:border-b lg:last:border-b-0 ${active ? "bg-card" : "hover:bg-card/60"}`}
                 >
                   {active && <motion.span layoutId="room-tab-mark" aria-hidden="true" className="absolute inset-y-0 left-0 hidden w-0.5 bg-gold lg:block" />}
@@ -162,6 +147,10 @@ export function RoomShowcase({ types, slots, onBook }: RoomShowcaseProps) {
                     </li>
                   ))}
                 </ul>
+
+                <Link href={`/rooms/${type.id}`} className="label mt-5 inline-flex items-center gap-2 self-start border-b border-gold pb-1 text-foreground transition-colors hover:text-gold">
+                  See this room in full
+                </Link>
 
                 <div className="mt-auto pt-7">
                   <div className="flex flex-wrap items-end justify-between gap-4">

@@ -59,3 +59,12 @@ def test_saving_one_field_keeps_another_managers_change():
     serializer.save()
     fresh = SiteContent.load()
     assert (fresh.name, fresh.tagline) == ("Tagore Guest House", "On the north lawn")
+
+
+def test_map_link_must_be_https():
+    client = client_for(make_user(Role.MANAGER))
+    assert client.patch("/api/site-content", {"map_url": "javascript:alert(1)"}, format="json").status_code == 400
+    assert client.patch("/api/site-content", {"map_url": "http://maps.example.com/x"}, format="json").status_code == 400
+    assert (
+        client.patch("/api/site-content", {"map_url": "https://maps.example.com/x"}, format="json").status_code == 200
+    )

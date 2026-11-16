@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Instrument_Serif, Manrope } from "next/font/google";
 import { Suspense, type ReactNode } from "react";
 
+import { Loading } from "@/components/ui";
 import { Footer } from "@/components/footer";
 import { Header } from "@/components/header";
 import { Providers } from "@/components/providers";
@@ -30,7 +31,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <Header />
           </Suspense>
           <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 py-10">
-            <Suspense fallback={<p className="py-8 text-center text-slate-500">Loading…</p>}>{children}</Suspense>
+            <Suspense fallback={<Loading />}>{children}</Suspense>
           </main>
           <Footer />
         </Providers>
