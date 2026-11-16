@@ -94,9 +94,12 @@ export default function WebsitePage() {
 
 function WebsiteForm({ saved }: { saved: SiteContent }) {
   const { run, error, busy } = useAction();
-  const [draft, setDraft] = useState(saved);
+  // Only the boxes this manager has typed in are kept here. Every other box follows the saved wording,
+  // so a colleague's change that arrives with a refresh is shown, not queued to be overwritten.
+  const [edits, setEdits] = useState<Partial<Record<Key, string>>>({});
   const [done, setDone] = useState(false);
-  const changed = GROUPS.flatMap((g) => g.fields).filter((f) => draft[f.key] !== saved[f.key]);
+  const valueOf = (key: Key) => edits[key] ?? saved[key];
+  const changed = GROUPS.flatMap((g) => g.fields).filter((f) => valueOf(f.key).trim() !== saved[f.key]);
 
   return (
     <form
@@ -104,10 +107,10 @@ function WebsiteForm({ saved }: { saved: SiteContent }) {
       onSubmit={async (e) => {
         e.preventDefault();
         setDone(false);
-        const body = Object.fromEntries(changed.map((f) => [f.key, draft[f.key].trim()]));
-        // The boxes are locked while this runs, so the draft cannot move under the save.
+        const body = Object.fromEntries(changed.map((f) => [f.key, valueOf(f.key).trim()]));
+        // The boxes are locked while this runs, so no edit can be typed under the save.
         if (await run(() => api("/site-content", { method: "PATCH", body }))) {
-          setDraft((current) => ({ ...current, ...body }));
+          setEdits({});
           setDone(true);
         }
       }}
@@ -120,12 +123,12 @@ function WebsiteForm({ saved }: { saved: SiteContent }) {
           <div className="grid gap-4 sm:grid-cols-2">
             {group.fields.map((f) => {
               const props = {
-                value: draft[f.key],
+                value: valueOf(f.key),
                 maxLength: f.max,
                 required: !f.optional,
                 onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
                   setDone(false);
-                  setDraft({ ...draft, [f.key]: e.target.value });
+                  setEdits((current) => ({ ...current, [f.key]: e.target.value }));
                 },
               };
               return (
@@ -153,7 +156,7 @@ function WebsiteForm({ saved }: { saved: SiteContent }) {
         <Button type="submit" disabled={busy || changed.length === 0}>
           {busy ? "Saving…" : "Save changes"}
         </Button>
-        <Button variant="secondary" disabled={busy || changed.length === 0} onClick={() => setDraft(saved)}>
+        <Button variant="secondary" disabled={busy || changed.length === 0} onClick={() => setEdits({})}>
           Undo edits
         </Button>
         <span className="text-sm text-slate-600" aria-live="polite">
