@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
-import { Card, Loading, Notice, PageTitle, StatusBadge } from "@/components/ui";
+import { Loading, Notice, PageTitle, primaryLink, StatusBadge } from "@/components/ui";
 import { api, fmtDate, inr } from "@/lib/api";
 import { useMe } from "@/lib/hooks";
 import type { Booking, Page } from "@/lib/types";
@@ -24,7 +24,7 @@ const DESK_FILTERS = [
 ] as const;
 
 const pagerLink =
-  "inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-50";
+  "inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-card px-4 text-sm font-medium text-slate-800 hover:bg-slate-50";
 
 export default function BookingsPage() {
   const params = useSearchParams();
@@ -71,8 +71,8 @@ export default function BookingsPage() {
               key={value}
               href={`/bookings?view=desk${value ? `&status=${value}` : ""}`}
               aria-current={status === value ? "page" : undefined}
-              className={`rounded-full border px-3 py-1.5 text-sm ${
-                status === value ? "border-brand-600 bg-brand-600 text-white" : "border-slate-300 bg-white"
+              className={`label rounded-[2px] border px-3 py-2 ${
+                status === value ? "border-foreground bg-foreground text-background" : "border-slate-300 text-slate-600 hover:border-slate-800"
               }`}
             >
               {label}
@@ -91,36 +91,41 @@ export default function BookingsPage() {
           )}
         </Notice>
       )}
-      {bookings.data?.results.length === 0 && (
-        <Notice>
-          {view.empty}{" "}
-          {viewKey === "mine" && (
-            <Link href="/" className="font-medium underline">
+      {bookings.data?.results.length === 0 &&
+        (viewKey === "mine" ? (
+          <div className="py-10">
+            <p className="max-w-xl font-display text-4xl leading-tight text-foreground md:text-5xl">
+              No stays yet. <em className="text-gold">Your first is a request away.</em>
+            </p>
+            <Link href="/" className={`${primaryLink} mt-8`}>
               Book a room
             </Link>
-          )}
-        </Notice>
-      )}
-      <ul className="space-y-3">
+          </div>
+        ) : (
+          <Notice>{view.empty}</Notice>
+        ))}
+      <ul className="border-slate-200 [&:not(:empty)]:border-b">
         {bookings.data?.results.map((booking) => (
-          <li key={booking.id}>
-            <Link href={`/bookings/${booking.id}`} className="block rounded-lg hover:ring-2 hover:ring-brand-100">
-              <Card className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="font-medium">
-                    {booking.room_type_name}
-                    {booking.room_number && ` · Room ${booking.room_number}`}
-                  </p>
-                  <p className="text-sm text-slate-600">
-                    {fmtDate(booking.check_in)} to {fmtDate(booking.check_out)} · {booking.reference}
-                    {viewKey !== "mine" && ` · ${booking.requester.name || booking.requester.email || booking.requester.phone}`}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-slate-700">{inr(booking.amount)}</span>
-                  <StatusBadge status={booking.status} label={booking.status_label} />
-                </div>
-              </Card>
+          <li key={booking.id} className="border-t border-slate-200">
+            <Link
+              href={`/bookings/${booking.id}`}
+              className="group grid gap-x-8 gap-y-2 px-1 py-6 transition-colors hover:bg-card sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:px-4"
+            >
+              <div className="min-w-0">
+                <p className="font-display text-3xl leading-none text-foreground">
+                  {booking.room_type_name}
+                  {booking.room_number && <span className="text-gold"> · Room {booking.room_number}</span>}
+                </p>
+                <p className="mt-2 text-sm text-slate-600">
+                  {fmtDate(booking.check_in)} to {fmtDate(booking.check_out)}
+                  {viewKey !== "mine" && ` · ${booking.requester.name || booking.requester.email || booking.requester.phone}`}
+                </p>
+              </div>
+              <p className="text-sm tabular-nums text-slate-600 sm:text-right">
+                <span className="label block text-slate-500">{booking.reference}</span>
+                {inr(booking.amount)}
+              </p>
+              <StatusBadge status={booking.status} label={booking.status_label} />
             </Link>
           </li>
         ))}

@@ -6,12 +6,19 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from apps.accounts.permissions import IsManager, is_manager
 from apps.audit import services as audit
 
-from .models import Room, RoomPhoto, RoomType
-from .serializers import RoomPhotoSerializer, RoomSerializer, RoomTypeSerializer, TariffSerializer
+from .models import Room, RoomPhoto, RoomType, SiteContent
+from .serializers import (
+    RoomPhotoSerializer,
+    RoomSerializer,
+    RoomTypeSerializer,
+    SiteContentSerializer,
+    TariffSerializer,
+)
 from .tasks import delete_photo_files, process_room_photo
 from .uploads import sniff, store_private
 
@@ -151,3 +158,23 @@ class RoomViewSet(AuditedMixin, viewsets.ModelViewSet):
     permission_classes = [IsManager]
     http_method_names = ["get", "post", "patch", "head", "options"]
     pagination_class = None
+
+
+class SiteContentView(APIView):
+    """The public site's wording. Anyone can read it; managers change it from the Website screen."""
+
+    def get_permissions(self):
+        return [AllowAny()] if self.request.method in ("GET", "HEAD", "OPTIONS") else [IsManager()]
+
+    def get(self, request):
+        return Response(SiteContentSerializer(SiteContent.load()).data)
+
+    @transaction.atomic
+    def patch(self, request):
+        content = SiteContent.load()
+        before = SiteContentSerializer(content).data
+        serializer = SiteContentSerializer(content, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        audit.log("sitecontent.updated", content, actor=request.user, before=before, after=serializer.data)
+        return Response(serializer.data)

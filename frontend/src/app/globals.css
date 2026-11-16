@@ -1,20 +1,259 @@
 @import "tailwindcss";
 @import "react-day-picker/style.css";
 
+/* shadcn-style dark mode: `dark:` applies inside an element with the `dark` class, not by OS setting,
+   so a page section can opt into the black-and-gold theme while the rest of the app stays light. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-brand-50: #eef6f6;
   --color-brand-100: #d5e9e8;
   --color-brand-600: #0f6b6b;
   --color-brand-700: #0b5555;
   --color-brand-900: #083838;
+
+  /* shadcn theme tokens (components in src/components/ui use these). Light values follow the app's
+     existing palette; the `.dark` class below swaps in the black-and-gold theme. */
+  --color-background: #f6f7f8;
+  --color-foreground: #1c2526;
+  --color-card: #ffffff;
+  --color-card-foreground: #1c2526;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #1c2526;
+  --color-primary: #0f6b6b;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #eef1f3;
+  --color-secondary-foreground: #1c2526;
+  --color-muted: #eef1f3;
+  --color-muted-foreground: #5b6670;
+  --color-accent: #d5e9e8;
+  --color-accent-foreground: #083838;
+  --color-destructive: #b91c1c;
+  --color-border: #e2e8f0;
+  --color-input: #cbd5e1;
+  --color-ring: #0f6b6b;
+  --color-chart-1: #8fc9c4;
+  --color-chart-2: #4fa7a3;
+  --color-chart-3: #0f8585;
+  --color-chart-4: #0b5f5f;
+  --color-chart-5: #083838;
   /* Chart marks: the brand's hue with enough colour to read as teal, not grey, at small sizes. */
   --color-chart: #009090;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Brass accent, used sparingly: rules, numerals, the active state. */
+  --color-gold: #b8935a;
+  --color-gold-soft: #d9c39a;
+  --color-ink: #0e0d0b;
+  --color-bone: #ebe4d4;
+  --color-paper: #ece6d8;
+  --color-forest: #1d3a31;
+
+  --font-display: var(--font-display-serif), ui-serif, Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Screen only: printed slips, registers and receipts stay black on white. */
+@media screen {
+  .dark {
+    --color-background: #0e0d0b;
+    --color-foreground: #ebe4d4;
+    --color-card: #151411;
+    --color-card-foreground: #ebe4d4;
+    --color-popover: #151411;
+    --color-popover-foreground: #ebe4d4;
+    --color-primary: #ebe4d4;
+    --color-primary-foreground: #0e0d0b;
+    --color-secondary: #1b1a16;
+    --color-secondary-foreground: #ebe4d4;
+    --color-muted: #1b1a16;
+    --color-muted-foreground: #979081;
+    --color-accent: #1d3a31;
+    --color-accent-foreground: #ebe4d4;
+    --color-destructive: #e0796b;
+    --color-border: #2b2924;
+    --color-input: #3d3a32;
+    --color-ring: #b8935a;
+    --color-chart-1: #6f6a5e;
+    --color-chart-2: #8c7a58;
+    --color-chart-3: #b8935a;
+    --color-chart-4: #d9c39a;
+    --color-chart-5: #ebe4d4;
+    --color-chart: #b8935a;
+    color-scheme: dark;
+  }
+
+  /* Inside the black-and-gold theme the existing screens' palette classes (slate text, brand teal,
+     status tints) are re-pointed at theme colours, so pages written for the light theme read
+     correctly without a dark: variant on every class. */
+  .dark {
+    --color-slate-50: rgb(255 255 255 / 0.04);
+    --color-slate-100: rgb(255 255 255 / 0.07);
+    --color-slate-200: #2b2924;
+    --color-slate-300: #3d3a32;
+    --color-slate-400: #7b7568;
+    --color-slate-500: #979081;
+    --color-slate-600: #aaa393;
+    --color-slate-700: #cfc8b8;
+    --color-slate-800: #e0d9c9;
+    --color-slate-900: #ebe4d4;
+    --color-brand-50: rgb(184 147 90 / 0.10);
+    --color-brand-100: rgb(184 147 90 / 0.22);
+    --color-brand-600: #b8935a;
+    --color-brand-700: #d0b07a;
+    --color-brand-900: #e4d1a8;
+    --color-red-50: rgb(248 113 113 / 0.08);
+    --color-red-100: rgb(248 113 113 / 0.16);
+    --color-red-200: rgb(248 113 113 / 0.32);
+    --color-red-300: rgb(248 113 113 / 0.45);
+    --color-red-700: #fca5a5;
+    --color-red-800: #fca5a5;
+    --color-red-900: #fca5a5;
+    --color-amber-50: rgb(251 191 36 / 0.08);
+    --color-amber-100: rgb(251 191 36 / 0.16);
+    --color-amber-200: rgb(251 191 36 / 0.32);
+    --color-amber-300: rgb(251 191 36 / 0.45);
+    --color-amber-700: #fcd34d;
+    --color-amber-800: #fcd34d;
+    --color-amber-900: #fcd34d;
+    --color-emerald-50: rgb(52 211 153 / 0.08);
+    --color-emerald-100: rgb(52 211 153 / 0.16);
+    --color-emerald-200: rgb(52 211 153 / 0.32);
+    --color-emerald-300: rgb(52 211 153 / 0.45);
+    --color-emerald-700: #6ee7b7;
+    --color-emerald-800: #6ee7b7;
+    --color-emerald-900: #6ee7b7;
+    --color-sky-50: rgb(56 189 248 / 0.08);
+    --color-sky-100: rgb(56 189 248 / 0.16);
+    --color-sky-200: rgb(56 189 248 / 0.32);
+    --color-sky-300: rgb(56 189 248 / 0.45);
+    --color-sky-700: #7dd3fc;
+    --color-sky-800: #7dd3fc;
+    --color-sky-900: #7dd3fc;
+    --color-orange-50: rgb(251 146 60 / 0.08);
+    --color-orange-100: rgb(251 146 60 / 0.16);
+    --color-orange-200: rgb(251 146 60 / 0.32);
+    --color-orange-300: rgb(251 146 60 / 0.45);
+    --color-orange-700: #fdba74;
+    --color-orange-800: #fdba74;
+    --color-orange-900: #fdba74;
+  }
+
+  /* A light "paper" section inside the dark site: the same tokens, turned over. */
+  .dark .paper {
+    --color-background: #ece6d8;
+    --color-foreground: #16140f;
+    --color-card: #f3eee2;
+    --color-card-foreground: #16140f;
+    --color-muted: #e1dac9;
+    --color-muted-foreground: #5f594c;
+    --color-border: #cbc3b0;
+    --color-primary: #16140f;
+    --color-primary-foreground: #ece6d8;
+    --color-gold: #8a6a35;
+    --color-gold-soft: #6f5527;
+    --color-emerald-700: #1f6b4a;
+    --color-red-700: #a23a2a;
+    color-scheme: light;
+  }
+}
+
+.dark .rdp-root {
+  --rdp-accent-color: #b8935a;
+  --rdp-accent-background-color: rgb(184 147 90 / 0.2);
+  --rdp-range_middle-background-color: rgb(184 147 90 / 0.14);
+  --rdp-range_middle-color: #ebe4d4;
+  --rdp-range_start-color: #0e0d0b;
+  --rdp-range_end-color: #0e0d0b;
+  --rdp-today-color: #d9c39a;
+  --rdp-day_button-border-radius: 2px;
+  --rdp-selected-border: 1px solid #b8935a;
+}
+
+.dark :focus-visible {
+  outline-color: #b8935a;
+}
+
+/* A flat surface with a hairline edge. (Named "glass" from an earlier frosted design; the screens that
+   use it now get the quieter editorial panel.) */
+@utility glass {
+  border: 1px solid var(--color-border);
+  background: var(--color-card);
+}
+
+/* Small upper-case label: section numbers, table heads, captions. */
+@utility label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  line-height: 1.4;
+  text-transform: uppercase;
 }
 
 body {
-  background: #f6f7f8;
-  color: #1c2526;
+  /* Full-bleed sections use 100vw, which includes the scrollbar; clip rather than scroll sideways. */
+  overflow-x: clip;
+  background: var(--color-background);
+  color: var(--color-foreground);
+}
+
+@media screen {
+  /* Fine paper grain over the whole page, so large flat areas do not look digital. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    pointer-events: none;
+    opacity: 0.06;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+}
+
+h1, h2, h3 {
+  /* The display face has one weight; a heavier utility class would only smear it. */
+  font-weight: 400;
+}
+/* In the base layer, so a heading used as a small label can opt out with font-sans. */
+@layer base {
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.015em;
+  }
+}
+/* Default sizes for headings that set none, kept below utilities so any text-* class wins. */
+@layer base {
+  h2 {
+    font-size: 1.625rem;
+    line-height: 1.15;
+  }
+  h3 {
+    font-size: 1.3125rem;
+    line-height: 1.2;
+  }
+}
+/* File pickers: the browser's grey button, restyled as a secondary button. */
+input[type="file"]::file-selector-button {
+  margin-right: 0.875rem;
+  min-height: 2.5rem;
+  border: 1px solid var(--color-input);
+  border-radius: 2px;
+  background: transparent;
+  padding: 0 1rem;
+  color: inherit;
+  font: inherit;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+input[type="file"]::file-selector-button:hover {
+  border-color: currentColor;
+}
+
+::selection {
+  background: #b8935a;
+  color: #0e0d0b;
 }
 
 .rdp-root {
@@ -29,4 +268,35 @@ body {
 :focus-visible {
   outline: 2px solid #0f6b6b;
   outline-offset: 2px;
+}
+
+/* Loading placeholders: flat bars that fade gently, still under reduced motion. */
+.skeleton {
+  border-radius: 2px;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  animation: skeleton-breathe 1.6s ease-in-out infinite;
+}
+@keyframes skeleton-breathe {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Pages settle in rather than snap. */
+@media screen and (prefers-reduced-motion: no-preference) {
+  #main > * {
+    animation: page-in 0.45s cubic-bezier(0.22, 0.85, 0.3, 1) backwards;
+  }
+}
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
 }

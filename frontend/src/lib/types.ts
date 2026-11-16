@@ -348,3 +348,30 @@ export const ID_TYPES = [
   ["PAN", "PAN card"],
   ["OTHER", "Other government ID"],
 ] as const;
+
+/** The public site's wording, edited by managers on the Website screen. */
+export interface SiteContent {
+  name: string;
+  tagline: string;
+  headline: string;
+  headline_accent: string;
+  intro: string;
+  step1_title: string;
+  step1_body: string;
+  step2_title: string;
+  step2_body: string;
+  step3_title: string;
+  step3_body: string;
+  footer_about: string;
+  about: string;
+  checkin_time: string;
+  checkout_time: string;
+  facilities: string;
+  house_rules: string;
+  directions: string;
+  map_url: string;
+  contact_phone: string;
+  contact_email: string;
+  address: string;
+  updated_at?: string;
+}

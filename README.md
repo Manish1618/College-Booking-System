@@ -212,6 +212,7 @@ The PRD leaves these open. Each has a working default so the build is not blocke
 
 | Question | What the code does now |
 | --- | --- |
+| Site wording (name, headline, booking steps, contact) | Defaults in `SiteContent`. Managers change it on the **Website** screen |
 | Rooms, room types and prices | Three placeholder types with 12 rooms from `seed_demo`. Staff replace them on the **Rooms** screen |
 | Who approves which stays | Any approver can decide any request until the admin adds approval rules per stay category |
 | Which guardians are eligible | Any signed-in user can raise a personal stay; the approver judges the student link |

@@ -202,7 +202,7 @@ export default function ReportsPage() {
             ) : (
               <div className="max-h-96 overflow-auto">
                 <table className="w-full min-w-[36rem] text-right text-sm tabular-nums">
-                  <thead className="sticky top-0 bg-white text-slate-600">
+                  <thead className="sticky top-0 bg-card text-slate-600">
                     <tr className="border-b border-slate-200">
                       <th scope="col" className="py-2 text-left font-medium">
                         {grouped.by === "day" ? "Day" : "Month"}

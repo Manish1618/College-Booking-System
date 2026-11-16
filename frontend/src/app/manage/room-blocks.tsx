@@ -163,7 +163,7 @@ function BlockRow({ block, today }: { block: RoomBlock; today: string }) {
         <div>
           <p className="font-medium">
             Room {block.room_number} · {block.room_type_name}
-            {started && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">Out now</span>}
+            {started && <span className="label ml-2 rounded-[2px] bg-amber-100 px-2 py-0.5 text-amber-900">Out now</span>}
           </p>
           <p className="text-slate-700">
             {fmtDate(block.starts_on)} until {fmtDate(block.ends_on)} ({block.nights} night(s)) · {block.reason}

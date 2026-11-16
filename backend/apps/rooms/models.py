@@ -106,3 +106,78 @@ class RoomPhoto(models.Model):
                 fields=["room_type"], condition=Q(is_cover=True), name="one_cover_photo_per_room_type"
             )
         ]
+
+
+class SiteContent(models.Model):
+    """The public site's wording, edited by managers on the Website screen. There is one row."""
+
+    SINGLETON_ID = 1
+
+    id = models.PositiveSmallIntegerField(primary_key=True, default=SINGLETON_ID, editable=False)
+    name = models.CharField(max_length=60, default="College Guesthouse")
+    tagline = models.CharField(max_length=80, default="Rooms on campus")
+    headline = models.CharField(max_length=80, default="Stay on campus,")
+    headline_accent = models.CharField(max_length=40, blank=True, default="quietly.")
+    intro = models.TextField(
+        max_length=400,
+        default=(
+            "Pick your dates and a room. The college approves your request, then "
+            "you pay online and your room is ready when you arrive."
+        ),
+    )
+    step1_title = models.CharField(max_length=60, default="You send a request")
+    step1_body = models.TextField(
+        max_length=300, default="Choose dates and a room, and tell us who is staying and why you are visiting."
+    )
+    step2_title = models.CharField(max_length=60, default="The college approves it")
+    step2_body = models.TextField(
+        max_length=300,
+        default=(
+            "Your request goes to the college for approval. You hear back by email, and nothing is charged until then."
+        ),
+    )
+    step3_title = models.CharField(max_length=60, default="You pay, and arrive")
+    step3_body = models.TextField(
+        max_length=300,
+        default="Pay online once approved. Your room is allotted and waiting at the desk when you check in.",
+    )
+    footer_about = models.TextField(
+        max_length=300, default="Rooms on campus for visiting faculty, families of students and guests of the college."
+    )
+    about = models.TextField(
+        max_length=600,
+        blank=True,
+        default=(
+            "A small guesthouse inside the campus, kept for visiting faculty, examiners, families of students "
+            "and guests of the college."
+        ),
+    )
+    checkin_time = models.CharField(max_length=40, blank=True, default="From 12 noon")
+    checkout_time = models.CharField(max_length=40, blank=True, default="By 11 am")
+    facilities = models.TextField(max_length=600, blank=True, help_text="One per line.")
+    house_rules = models.TextField(
+        max_length=800,
+        blank=True,
+        help_text="One per line.",
+        default=(
+            "A government photo ID is needed for each guest at check-in.\n"
+            "A booking is confirmed only after the college approves it and payment is made."
+        ),
+    )
+    directions = models.TextField(max_length=400, blank=True)
+    map_url = models.URLField(blank=True)
+    contact_phone = models.CharField(max_length=40, blank=True)
+    contact_email = models.EmailField(blank=True)
+    address = models.CharField(max_length=200, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        self.pk = self.SINGLETON_ID
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        return cls.objects.get_or_create(pk=cls.SINGLETON_ID)[0]
+
+    def __str__(self):
+        return self.name

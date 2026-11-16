@@ -1,12 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 
 import { api } from "@/lib/api";
-import { isAdmin, isApprover, isManager, useMe } from "@/lib/hooks";
+import { Mark } from "@/components/mark";
+import { isAdmin, isApprover, isManager, splitName, useMe, useSiteContent } from "@/lib/hooks";
 
 export function Header() {
   const { data: me, isLoading } = useMe();
+  const [first, accent] = splitName(useSiteContent().name);
+  const pathname = usePathname();
+  const view = useSearchParams().get("view");
+  const here = view ? `${pathname}?view=${view}` : pathname;
 
   const links = [
     { href: "/", label: "Book a room", show: true },
@@ -16,6 +22,7 @@ export function Header() {
     { href: "/bookings?view=desk", label: "All bookings", show: isManager(me) },
     { href: "/register", label: "Register", show: isManager(me) },
     { href: "/manage", label: "Rooms", show: isManager(me) },
+    { href: "/website", label: "Website", show: isManager(me) },
     { href: "/reports", label: "Reports", show: isManager(me) },
     { href: "/admin", label: "Admin", show: isAdmin(me) },
   ].filter((link) => link.show);
@@ -29,28 +36,39 @@ export function Header() {
   }
 
   return (
-    <header className="border-b border-slate-200 bg-white print:hidden">
-      <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-        <Link href="/" className="text-lg font-semibold text-brand-700">
-          College Guesthouse
+    <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur-md print:hidden">
+      <div className="mx-auto flex max-w-[88rem] flex-wrap items-center gap-x-8 gap-y-2 px-4 py-4 md:px-8">
+        <Link href="/" className="flex items-center gap-2.5 font-display text-2xl leading-none text-foreground">
+          <Mark className="size-6 text-gold" />
+          <span>
+          {first} {accent && <span className="italic text-gold">{accent}</span>}
+          </span>
         </Link>
-        <nav aria-label="Main" className="flex flex-1 flex-wrap gap-x-4 gap-y-1 text-sm">
-          {links.map((link) => (
-            <Link key={link.href} href={link.href} className="py-2 text-slate-700 hover:text-brand-700">
-              {link.label}
-            </Link>
-          ))}
+        <nav aria-label="Main" className="order-last flex basis-full flex-wrap gap-x-6 gap-y-1 sm:order-none sm:flex-1 sm:basis-auto">
+          {links.map((link) => {
+            const active = link.href === here;
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                aria-current={active ? "page" : undefined}
+                className={`label whitespace-nowrap border-b py-2 transition-colors ${active ? "border-gold text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
         </nav>
-        <div className="flex items-center gap-3 text-sm">
+        <div className="ml-auto flex items-center gap-3 text-sm">
           {isLoading ? null : me ? (
             <>
               <span className="text-slate-600">{me.name || me.email || me.phone}</span>
-              <button type="button" onClick={signOut} className="py-2 font-medium text-brand-700 hover:underline">
+              <button type="button" onClick={signOut} className="label border-b border-transparent py-2 text-muted-foreground transition-colors hover:border-foreground hover:text-foreground">
                 Sign out
               </button>
             </>
           ) : (
-            <Link href="/login" className="py-2 font-medium text-brand-700 hover:underline">
+            <Link href="/login" className="label rounded-[2px] border border-input px-4 py-2.5 text-foreground transition-colors hover:border-foreground">
               Sign in
             </Link>
           )}

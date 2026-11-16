@@ -84,7 +84,7 @@ export function OccupancyChart({ rows }: { rows: Period[] }) {
           {current && (
             <div
               role="status"
-              className="pointer-events-none absolute top-1 z-10 w-max max-w-56 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-md"
+              className="pointer-events-none absolute top-1 z-10 w-max max-w-56 rounded-md border border-slate-200 bg-card px-3 py-2 text-sm text-slate-700 shadow-md"
               style={{
                 left: `${place}%`,
                 transform: `translateX(${place < 20 ? "0" : place > 80 ? "-100%" : "-50%"})`,
