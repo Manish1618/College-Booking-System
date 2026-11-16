@@ -2,7 +2,7 @@
 
 /*
  * "Endless" 3D image corridor from 21st.dev, made data driven for the guesthouse: the planes come
- * from `slides` (a photo, or a gold glass card when a room type has no photo yet), the title and
+ * from `slides` (a photo, or a plain titled card when a room type has no photo yet), the title and
  * caption are props, and `children` render above the corridor (the corridor itself ignores the
  * pointer). Animation and layout are the original GSAP code.
  */
@@ -53,7 +53,7 @@ const css = `
   width: 100%;
   height: var(--endless-height, 100vh);
   overflow: hidden;
-  background-color: #000000;
+  background-color: #0e0d0b;
   color: #ffffff;
   font-family: inherit;
   user-select: none;
@@ -84,7 +84,7 @@ const css = `
   position: absolute;
   top: 50%;
   left: 50%;
-  background-color: #000000;
+  background-color: #0e0d0b;
   -webkit-transform-style: preserve-3d;
   transform-style: preserve-3d;
   transform-origin: 50% 50%;
@@ -101,23 +101,22 @@ const css = `
   justify-content: flex-end;
   gap: 0.35rem;
   padding: 8%;
-  border: 1px solid rgba(212, 175, 55, 0.45);
-  background:
-    radial-gradient(120% 80% at 20% 0%, rgba(212, 175, 55, 0.28), transparent 60%),
-    linear-gradient(160deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
-  color: #f3e3b5;
+  border: 1px solid #3d3a32;
+  background: #1a1814;
+  color: #ebe4d4;
   font-family: inherit;
 }
 
 .endless-root .endless-plane-card strong {
-  font-size: clamp(0.8rem, 1.8vw, 1.6rem);
-  font-weight: 500;
-  letter-spacing: 0.02em;
+  font-family: var(--font-display);
+  font-size: clamp(1rem, 2.4vw, 2.2rem);
+  font-weight: 400;
+  letter-spacing: -0.01em;
   line-height: 1.15;
 }
 
 .endless-root .endless-plane-card span {
-  color: #b8a06a;
+  color: #979081;
   font-size: clamp(0.6rem, 1vw, 0.9rem);
   letter-spacing: 0.08em;
   text-transform: uppercase;

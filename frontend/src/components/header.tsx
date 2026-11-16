@@ -33,21 +33,12 @@ export function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b border-gold/15 bg-background/70 shadow-[0_10px_30px_-20px_rgb(0_0_0/0.9)] backdrop-blur-xl backdrop-saturate-150 print:hidden">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-        <Link href="/" className="group flex items-center gap-3">
-          <span
-            aria-hidden="true"
-            className="grid size-9 place-items-center rounded-full border border-gold/50 bg-gradient-to-b from-[#2a2417] to-black font-display text-lg font-semibold text-gold shadow-[inset_0_1px_0_rgb(255_255_255/0.12),0_6px_18px_-8px_rgb(212_175_55/0.6)] transition-transform group-hover:rotate-[-8deg] motion-reduce:transition-none"
-          >
-            G
-          </span>
-          <span className="flex flex-col leading-none">
-            <span className="font-display text-xl font-semibold tracking-wide text-gold-soft">College Guesthouse</span>
-            <span className="mt-1 hidden text-[10px] font-medium uppercase sm:block tracking-[0.3em] text-slate-500">On campus stays</span>
-          </span>
+    <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur-md print:hidden">
+      <div className="mx-auto flex max-w-[88rem] flex-wrap items-center gap-x-8 gap-y-2 px-4 py-4 md:px-8">
+        <Link href="/" className="font-display text-2xl leading-none text-foreground">
+          College <span className="italic text-gold">Guesthouse</span>
         </Link>
-        <nav aria-label="Main" className="flex flex-1 flex-wrap gap-1 text-sm">
+        <nav aria-label="Main" className="order-last flex basis-full flex-wrap gap-x-6 gap-y-1 sm:order-none sm:flex-1 sm:basis-auto">
           {links.map((link) => {
             const active = link.href === here;
             return (
@@ -55,23 +46,23 @@ export function Header() {
                 key={link.href}
                 href={link.href}
                 aria-current={active ? "page" : undefined}
-                className={`rounded-full px-3 py-2 transition-colors ${active ? "bg-gold/12 text-gold-soft ring-1 ring-gold/30" : "text-slate-600 hover:bg-white/5 hover:text-gold-soft"}`}
+                className={`label whitespace-nowrap border-b py-2 transition-colors ${active ? "border-gold text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}
               >
                 {link.label}
               </Link>
             );
           })}
         </nav>
-        <div className="flex items-center gap-3 text-sm">
+        <div className="ml-auto flex items-center gap-3 text-sm">
           {isLoading ? null : me ? (
             <>
               <span className="text-slate-600">{me.name || me.email || me.phone}</span>
-              <button type="button" onClick={signOut} className="rounded-full border border-gold/30 px-4 py-2 font-medium text-gold-soft transition-colors hover:border-gold hover:bg-gold/10">
+              <button type="button" onClick={signOut} className="label border-b border-transparent py-2 text-muted-foreground transition-colors hover:border-foreground hover:text-foreground">
                 Sign out
               </button>
             </>
           ) : (
-            <Link href="/login" className="rounded-full bg-gradient-to-b from-gold-soft to-gold px-4 py-2 font-semibold text-black shadow-[0_8px_22px_-12px_rgb(212_175_55/0.9)]">
+            <Link href="/login" className="label rounded-[2px] border border-input px-4 py-2.5 text-foreground transition-colors hover:border-foreground">
               Sign in
             </Link>
           )}

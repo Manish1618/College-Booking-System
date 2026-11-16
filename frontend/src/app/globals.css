@@ -39,41 +39,45 @@
   --color-chart-5: #083838;
   /* Chart marks: the brand's hue with enough colour to read as teal, not grey, at small sizes. */
   --color-chart: #009090;
-  --color-gold: #d4af37;
-  --color-gold-soft: #f1dfa4;
+  /* Brass accent, used sparingly: rules, numerals, the active state. */
+  --color-gold: #b8935a;
+  --color-gold-soft: #d9c39a;
+  --color-ink: #0e0d0b;
+  --color-bone: #ebe4d4;
+  --color-paper: #ece6d8;
+  --color-forest: #1d3a31;
 
-  --font-display: var(--font-cormorant), ui-serif, Georgia, "Times New Roman", serif;
+  --font-display: var(--font-display-serif), ui-serif, Georgia, "Times New Roman", serif;
   --font-sans: var(--font-manrope), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 /* Screen only: printed slips, registers and receipts stay black on white. */
 @media screen {
   .dark {
-    --color-background: #0a0907;
-    --color-foreground: #f4ead2;
-    --color-card: #15120d;
-    --color-card-foreground: #f4ead2;
-    --color-popover: #15120d;
-    --color-popover-foreground: #f4ead2;
-    --color-primary: #d4af37;
-    --color-primary-foreground: #0a0907;
-    --color-secondary: #221d14;
-    --color-secondary-foreground: #f4ead2;
-    --color-muted: #1d1912;
-    --color-muted-foreground: #a99b7c;
-    --color-accent: #2b2414;
-    --color-accent-foreground: #f1dfa4;
-    --color-destructive: #f87171;
-    --color-border: #3b3221;
-    --color-input: #4a3f29;
-    --color-ring: #d4af37;
-    /* Price tiers, cheapest to dearest: bronze through to pale gold. */
-    --color-chart-1: #9a7445;
-    --color-chart-2: #b98f4e;
-    --color-chart-3: #d4af37;
-    --color-chart-4: #e6c766;
-    --color-chart-5: #f6e3a1;
-    --color-chart: #d4af37;
+    --color-background: #0e0d0b;
+    --color-foreground: #ebe4d4;
+    --color-card: #151411;
+    --color-card-foreground: #ebe4d4;
+    --color-popover: #151411;
+    --color-popover-foreground: #ebe4d4;
+    --color-primary: #ebe4d4;
+    --color-primary-foreground: #0e0d0b;
+    --color-secondary: #1b1a16;
+    --color-secondary-foreground: #ebe4d4;
+    --color-muted: #1b1a16;
+    --color-muted-foreground: #979081;
+    --color-accent: #1d3a31;
+    --color-accent-foreground: #ebe4d4;
+    --color-destructive: #e0796b;
+    --color-border: #2b2924;
+    --color-input: #3d3a32;
+    --color-ring: #b8935a;
+    --color-chart-1: #6f6a5e;
+    --color-chart-2: #8c7a58;
+    --color-chart-3: #b8935a;
+    --color-chart-4: #d9c39a;
+    --color-chart-5: #ebe4d4;
+    --color-chart: #b8935a;
     color-scheme: dark;
   }
 
@@ -83,19 +87,19 @@
   .dark {
     --color-slate-50: rgb(255 255 255 / 0.04);
     --color-slate-100: rgb(255 255 255 / 0.07);
-    --color-slate-200: #3b3221;
-    --color-slate-300: #4a3f29;
-    --color-slate-400: #8a7d62;
-    --color-slate-500: #a99b7c;
-    --color-slate-600: #b9ab8c;
-    --color-slate-700: #d6c9a8;
-    --color-slate-800: #eadfc2;
-    --color-slate-900: #f4ead2;
-    --color-brand-50: rgb(212 175 55 / 0.10);
-    --color-brand-100: rgb(212 175 55 / 0.22);
-    --color-brand-600: #d4af37;
-    --color-brand-700: #e6c766;
-    --color-brand-900: #f1dfa4;
+    --color-slate-200: #2b2924;
+    --color-slate-300: #3d3a32;
+    --color-slate-400: #7b7568;
+    --color-slate-500: #979081;
+    --color-slate-600: #aaa393;
+    --color-slate-700: #cfc8b8;
+    --color-slate-800: #e0d9c9;
+    --color-slate-900: #ebe4d4;
+    --color-brand-50: rgb(184 147 90 / 0.10);
+    --color-brand-100: rgb(184 147 90 / 0.22);
+    --color-brand-600: #b8935a;
+    --color-brand-700: #d0b07a;
+    --color-brand-900: #e4d1a8;
     --color-red-50: rgb(248 113 113 / 0.08);
     --color-red-100: rgb(248 113 113 / 0.16);
     --color-red-200: rgb(248 113 113 / 0.32);
@@ -132,30 +136,56 @@
     --color-orange-800: #fdba74;
     --color-orange-900: #fdba74;
   }
+
+  /* A light "paper" section inside the dark site: the same tokens, turned over. */
+  .dark .paper {
+    --color-background: #ece6d8;
+    --color-foreground: #16140f;
+    --color-card: #f3eee2;
+    --color-card-foreground: #16140f;
+    --color-muted: #e1dac9;
+    --color-muted-foreground: #5f594c;
+    --color-border: #cbc3b0;
+    --color-primary: #16140f;
+    --color-primary-foreground: #ece6d8;
+    --color-gold: #8a6a35;
+    --color-gold-soft: #6f5527;
+    --color-emerald-700: #1f6b4a;
+    --color-red-700: #a23a2a;
+    color-scheme: light;
+  }
 }
 
-
 .dark .rdp-root {
-  --rdp-accent-color: #d4af37;
-  --rdp-accent-background-color: rgb(212 175 55 / 0.18);
-  --rdp-range_middle-background-color: rgb(212 175 55 / 0.14);
-  --rdp-range_middle-color: #f4ead2;
-  --rdp-range_start-color: #0a0907;
-  --rdp-range_end-color: #0a0907;
-  --rdp-today-color: #f1dfa4;
+  --rdp-accent-color: #b8935a;
+  --rdp-accent-background-color: rgb(184 147 90 / 0.2);
+  --rdp-range_middle-background-color: rgb(184 147 90 / 0.14);
+  --rdp-range_middle-color: #ebe4d4;
+  --rdp-range_start-color: #0e0d0b;
+  --rdp-range_end-color: #0e0d0b;
+  --rdp-today-color: #d9c39a;
+  --rdp-day_button-border-radius: 2px;
+  --rdp-selected-border: 1px solid #b8935a;
 }
 
 .dark :focus-visible {
-  outline-color: #d4af37;
+  outline-color: #b8935a;
 }
 
-/* Frosted glass panel for the black-and-gold screens. */
+/* A flat surface with a hairline edge. (Named "glass" from an earlier frosted design; the screens that
+   use it now get the quieter editorial panel.) */
 @utility glass {
-  border: 1px solid rgb(212 175 55 / 0.22);
-  background: linear-gradient(150deg, rgb(255 255 255 / 0.07), rgb(255 255 255 / 0.02));
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08), 0 24px 60px -30px rgb(0 0 0 / 0.9);
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid var(--color-border);
+  background: var(--color-card);
+}
+
+/* Small upper-case label: section numbers, table heads, captions. */
+@utility label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  line-height: 1.4;
+  text-transform: uppercase;
 }
 
 body {
@@ -166,19 +196,29 @@ body {
 }
 
 @media screen {
-  /* A low gold light from the top corners gives every screen some depth. */
-  body {
-    background:
-      radial-gradient(70% 50% at 0% 0%, rgb(212 175 55 / 0.07), transparent 60%),
-      radial-gradient(60% 45% at 100% 0%, rgb(212 175 55 / 0.05), transparent 60%),
-      var(--color-background);
-    background-attachment: fixed;
+  /* Fine paper grain over the whole page, so large flat areas do not look digital. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    pointer-events: none;
+    opacity: 0.06;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   }
 }
 
 h1, h2, h3 {
   font-family: var(--font-display);
-  letter-spacing: -0.01em;
+  /* The display face has one weight; a heavier utility class would only smear it. */
+  font-weight: 400;
+  letter-spacing: -0.015em;
+}
+
+::selection {
+  background: #b8935a;
+  color: #0e0d0b;
 }
 
 .rdp-root {

@@ -71,8 +71,8 @@ export default function BookingsPage() {
               key={value}
               href={`/bookings?view=desk${value ? `&status=${value}` : ""}`}
               aria-current={status === value ? "page" : undefined}
-              className={`rounded-full border px-3 py-1.5 text-sm ${
-                status === value ? "border-gold bg-gold text-black" : "border-slate-300 bg-card"
+              className={`label rounded-[2px] border px-3 py-2 ${
+                status === value ? "border-foreground bg-foreground text-background" : "border-slate-300 text-slate-600 hover:border-slate-800"
               }`}
             >
               {label}

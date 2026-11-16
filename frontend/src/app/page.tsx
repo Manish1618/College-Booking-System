@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDown, BedDouble, CalendarRange, Sparkles, Users } from "lucide-react";
+import { ArrowDown, ArrowRight } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -12,7 +12,8 @@ import dynamic from "next/dynamic";
 
 import Endless, { type EndlessSlide } from "@/components/ui/endless";
 import { RoomShowcase } from "@/components/room-showcase";
-import { TiltCard } from "@/components/tilt-card";
+import { SectionHead } from "@/components/section-head";
+import { primaryLink, secondaryLink } from "@/components/ui";
 import { api, fmtDate, inr, isoDate } from "@/lib/api";
 import type { Availability, Photo, RoomType } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -27,17 +28,12 @@ const PLACEHOLDER_SLIDES: EndlessSlide[] = [
   { label: "Book in minutes", sublabel: "Online" },
 ];
 
-const goldButton =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-gradient-to-b from-gold-soft to-gold px-5 text-sm font-semibold text-black shadow-[0_10px_30px_-12px_rgb(212_175_55/0.8)] transition-[translate,box-shadow] hover:-translate-y-px hover:shadow-[0_14px_36px_-12px_rgb(212_175_55/0.95)] motion-reduce:transition-none";
-const ghostButton =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-gold/40 px-5 text-sm font-medium text-gold-soft transition-colors hover:border-gold hover:bg-gold/10";
-
 const coverOf = (type: RoomType): Photo | undefined => type.photos.find((p) => p.is_cover) ?? type.photos[0];
 
 export default function HomePage() {
   const router = useRouter();
   const reduce = useReducedMotion();
-  const datesRef = useRef<HTMLDivElement>(null);
+  const datesRef = useRef<HTMLElement>(null);
   const [range, setRange] = useState<DateRange | undefined>();
   const [wanted, setWanted] = useState<string | null>(null);
   const checkIn = range?.from ? isoDate(range.from) : null;
@@ -97,97 +93,86 @@ export default function HomePage() {
         };
 
   return (
-    <div className="dark relative -my-10 mx-[calc(50%-50vw)] bg-background pb-16 text-foreground">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 overflow-hidden"
-        style={{
-          background:
-            "radial-gradient(60% 40% at 15% 55%, rgb(212 175 55 / 0.10), transparent 70%), radial-gradient(50% 35% at 90% 80%, rgb(212 175 55 / 0.08), transparent 70%)",
-        }}
-      />
-
-      <section aria-labelledby="hero-heading" className="relative mx-auto grid w-full max-w-6xl items-center gap-6 px-4 pt-10 md:pt-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:gap-4">
-        <motion.div
-          className="relative z-10 order-2 lg:order-1"
-          initial={reduce ? false : { opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.9, ease: [0.22, 0.85, 0.3, 1] }}
-        >
-          <p className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.35em] text-gold">
-            <span aria-hidden="true" className="h-px w-10 bg-gradient-to-r from-gold to-transparent" />
-            College Guesthouse
-          </p>
-          <h1 id="hero-heading" className="mt-5 text-5xl font-semibold leading-[1.02] tracking-tight text-foreground md:text-6xl xl:text-7xl">
-            Stay on campus,{" "}
-            <span className="bg-gradient-to-b from-[#fff3cf] via-gold-soft to-gold bg-clip-text italic text-transparent">in quiet comfort.</span>
-          </h1>
-          <p className="mt-6 max-w-md text-base leading-relaxed text-muted-foreground md:text-lg">
-            Pick your dates and a room. The college approves your request, then you pay online and get your room on arrival.
-          </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <button type="button" onClick={scrollToDates} className={goldButton}>
-              Check availability
-              <ArrowDown aria-hidden="true" className="size-4" />
-            </button>
-            <a href="#rooms" className={ghostButton}>
-              See the rooms
-            </a>
+    <div className="relative -my-10 mx-[calc(50%-50vw)] bg-background text-foreground">
+      <section aria-labelledby="hero-heading" className="relative overflow-hidden border-b border-border">
+        <div className="relative mx-auto w-full max-w-[88rem] px-4 md:px-8">
+          <div className="relative -mx-4 h-[300px] sm:h-[380px] md:-mx-8 lg:absolute lg:inset-y-0 lg:right-0 lg:mx-0 lg:h-auto lg:w-[56%]">
+            <GuesthouseModel className="size-full" />
           </div>
-          {types.length > 0 && (
-            <dl className="mt-10 grid max-w-md grid-cols-3 divide-x divide-gold/15 rounded-2xl border border-gold/15 bg-white/[0.02] py-4 backdrop-blur-sm">
-              {[
-                ["Room types", String(types.length)],
-                ["Rooms", String(types.reduce((sum, t) => sum + t.room_count, 0))],
-                ["From", fromPrice ? `${inr(fromPrice)}` : "—"],
-              ].map(([label, value]) => (
-                <div key={label} className="px-4">
-                  <dt className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">{label}</dt>
-                  <dd className="mt-1 font-display text-2xl font-semibold text-gold-soft">{value}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
-        </motion.div>
-        <div className="relative order-1 -mx-4 h-[340px] sm:h-[420px] lg:order-2 lg:mx-0 lg:h-[560px]">
-          <div aria-hidden="true" className="absolute inset-x-[10%] bottom-[8%] top-[20%] rounded-full bg-gold/10 blur-3xl" />
-          <GuesthouseModel className="relative size-full" />
+          <motion.div
+            className="pointer-events-none relative z-10 pb-12 lg:pb-20 lg:pt-24"
+            initial={reduce ? false : { opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, ease: [0.22, 0.85, 0.3, 1] }}
+          >
+            <p className="label text-muted-foreground">
+              College Guesthouse <span aria-hidden="true" className="mx-2 text-gold">/</span> Rooms on campus
+            </p>
+            <h1 id="hero-heading" className="mt-6 max-w-[11ch] text-[clamp(3.5rem,10.5vw,9.5rem)] leading-[0.88] tracking-[-0.03em] text-foreground">
+              Stay on campus, <em className="text-gold">quietly.</em>
+            </h1>
+            <div className="pointer-events-auto mt-10 grid max-w-xl gap-8 sm:grid-cols-[1fr_auto] sm:items-end">
+              <p className="text-base leading-relaxed text-muted-foreground">
+                Pick your dates and a room. The college approves your request, then you pay online and your room is ready when you arrive.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <button type="button" onClick={scrollToDates} className={primaryLink}>
+                  Check availability
+                  <ArrowDown aria-hidden="true" className="size-3.5" />
+                </button>
+              </div>
+            </div>
+          </motion.div>
         </div>
+        {types.length > 0 && (
+          <dl className="relative z-10 mx-auto grid w-full max-w-[88rem] grid-cols-2 border-t border-border bg-background md:grid-cols-4">
+            {[
+              ["Room types", String(types.length)],
+              ["Rooms", String(types.reduce((sum, t) => sum + t.room_count, 0))],
+              ["From, per night", fromPrice ? inr(fromPrice) : "—"],
+              ["Longest stay", "14 nights"],
+            ].map(([label, value], i) => (
+              <div key={label} className={cn("border-border px-4 py-5 md:px-8", i % 2 === 1 && "border-l", i >= 2 && "border-t md:border-t-0", i === 2 && "md:border-l")}>
+                <dt className="label text-muted-foreground">{label}</dt>
+                <dd className="mt-2 font-display text-3xl leading-none text-foreground md:text-4xl">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
       </section>
 
-      <div className="relative mx-auto w-full max-w-6xl px-4">
-        <motion.div
-          ref={datesRef}
-          {...rise()}
-          className="glass mt-6 grid scroll-mt-6 gap-6 rounded-3xl p-5 md:grid-cols-[auto_1fr] md:p-7"
-        >
-          <div>
-            <h2 className="mb-2 flex items-center gap-2 font-medium text-gold-soft">
-              <CalendarRange aria-hidden="true" className="size-4 text-gold" />
-              Your stay
-            </h2>
-            <DayPicker
-              mode="range"
-              selected={range}
-              onSelect={setRange}
-              disabled={{ before: new Date() }}
-              min={1}
-              max={14}
-            />
+      <section ref={datesRef} aria-labelledby="dates-heading" className="mx-auto w-full max-w-[88rem] scroll-mt-20 px-4 pt-20 md:px-8 md:pt-28">
+        <SectionHead no="01" kicker="Dates" id="dates-heading" title="When are you staying?" aside="Choose your arrival and departure. Stays run from one to fourteen nights." />
+        <div className="mt-10 grid gap-10 md:grid-cols-12">
+          <div className="md:col-span-5 md:col-start-4 lg:col-span-4 lg:col-start-4">
+            <div className="inline-block border border-border p-3 sm:p-5">
+              <DayPicker mode="range" selected={range} onSelect={setRange} disabled={{ before: new Date() }} min={1} max={14} />
+            </div>
           </div>
-          <div className="flex flex-col justify-center gap-4">
-            <p className="text-sm text-muted-foreground" aria-live="polite">
+          <div className="flex flex-col gap-6 md:col-span-4 lg:col-span-5">
+            <div aria-live="polite">
               {checkIn && checkOut ? (
                 <>
-                  <span className="block text-xl font-medium text-foreground">
-                    {fmtDate(checkIn)} to {fmtDate(checkOut)}
-                  </span>
-                  {availability.data?.nights ?? "…"} night(s)
+                  <dl className="grid grid-cols-2 border-y border-border">
+                    <div className="py-5 pr-4">
+                      <dt className="label text-muted-foreground">Arrive</dt>
+                      <dd className="mt-2 font-display text-3xl leading-none md:text-4xl">{fmtDate(checkIn)}</dd>
+                    </div>
+                    <div className="border-l border-border py-5 pl-5">
+                      <dt className="label text-muted-foreground">Leave</dt>
+                      <dd className="mt-2 font-display text-3xl leading-none md:text-4xl">{fmtDate(checkOut)}</dd>
+                    </div>
+                  </dl>
+                  <p className="mt-4 text-sm text-muted-foreground">
+                    {availability.data ? `${availability.data.nights} ${availability.data.nights === 1 ? "night" : "nights"}. Rooms below now show what is free.` : "Checking rooms…"}
+                  </p>
                 </>
               ) : (
-                "Choose a check-in and a check-out date to see which rooms are free."
+                <p className="font-display text-3xl leading-tight text-muted-foreground md:text-4xl">
+                  Choose two dates and we will show you which rooms are free.
+                </p>
               )}
-            </p>
+            </div>
             <AnimatePresence mode="popLayout">
               {wantedType && (
                 <motion.div
@@ -195,21 +180,23 @@ export default function HomePage() {
                   initial={reduce ? false : { opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
-                  className="rounded-2xl border border-gold/30 bg-gold/5 p-4 text-sm"
+                  className="border-l-2 border-gold pl-5 text-sm"
                   role="status"
                 >
-                  <p className="font-medium text-gold-soft">{wantedType.name}</p>
+                  <p className="label text-gold">Your room</p>
+                  <p className="mt-1.5 font-display text-2xl text-foreground">{wantedType.name}</p>
                   {!checkOut ? (
                     <p className="mt-1 text-muted-foreground">Pick your dates and we will check this room for you.</p>
                   ) : !wantedSlot ? (
                     <p className="mt-1 text-muted-foreground">Checking these dates…</p>
                   ) : wantedSlot.available > 0 ? (
-                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                    <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-3">
                       <span className="text-muted-foreground">
                         {wantedSlot.available} free · {inr(wantedSlot.amount)} total
                       </span>
-                      <Link href={bookHref(wantedType.id)} className={goldButton}>
+                      <Link href={bookHref(wantedType.id)} className={primaryLink}>
                         Request this room
+                        <ArrowRight aria-hidden="true" className="size-3.5" />
                       </Link>
                     </div>
                   ) : (
@@ -224,77 +211,70 @@ export default function HomePage() {
               </p>
             )}
           </div>
-        </motion.div>
-      </div>
+        </div>
+      </section>
 
       <RoomShowcase types={types} slots={byType} onBook={(type) => chooseRoom(type.id)} />
 
-      <section id="rooms" aria-labelledby="rooms-heading" className="relative mx-auto mt-10 w-full max-w-6xl scroll-mt-6 px-4">
-        <motion.h2 {...rise()} id="rooms-heading" className="mb-4 flex items-center gap-2 text-xl font-medium text-gold-soft">
-          <Sparkles aria-hidden="true" className="size-4 text-gold" />
-          All rooms
-        </motion.h2>
-        {roomTypes.isLoading && <p className="py-8 text-center text-muted-foreground">Loading…</p>}
-        {roomTypes.error && (
-          <p role="alert" className="text-sm text-red-700">
-            {roomTypes.error.message}
-          </p>
-        )}
-        {roomTypes.data?.length === 0 && <p className="text-muted-foreground">No rooms are open for booking yet.</p>}
-        <div className="space-y-4">
-          {types.map((type, index) => {
-            const slot = byType.get(type.id);
-            const cover = coverOf(type);
-            return (
-              <TiltCard
-                key={type.id}
-                {...rise(Math.min(index, 4) * 0.06)}
-                className={cn(
-                  "glass flex flex-col gap-4 rounded-3xl p-4 sm:flex-row sm:p-5",
-                  wanted === type.id && "ring-1 ring-gold/60",
-                )}
-              >
-                {cover?.urls["480"] ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={cover.urls["480"]}
-                    srcSet={Object.entries(cover.urls).map(([w, url]) => `${url} ${w}w`).join(", ")}
-                    sizes="(min-width: 640px) 14rem, 100vw"
-                    alt={cover.caption || `${type.name} room`}
-                    loading="lazy"
-                    className="h-40 w-full rounded-2xl object-cover sm:w-56"
-                  />
-                ) : (
-                  <div className="flex h-40 w-full flex-col items-center justify-center gap-2 rounded-2xl border border-gold/20 bg-gradient-to-br from-gold/15 to-transparent text-sm text-gold-soft sm:w-56">
-                    <BedDouble aria-hidden="true" className="size-8 text-gold" />
-                    No photo yet
+      <section id="rooms" aria-labelledby="rooms-heading" className="paper mt-20 scroll-mt-16 bg-background text-foreground md:mt-28">
+        <div className="mx-auto w-full max-w-[88rem] px-4 py-20 md:px-8 md:py-28">
+          <SectionHead no="03" kicker="Index" id="rooms-heading" title="Every room, side by side" aside="Prices are per room, per night. Availability appears once you have picked dates." />
+          {roomTypes.isLoading && <p className="py-10 text-muted-foreground">Loading…</p>}
+          {roomTypes.error && (
+            <p role="alert" className="mt-8 text-sm text-red-700">
+              {roomTypes.error.message}
+            </p>
+          )}
+          {roomTypes.data?.length === 0 && <p className="mt-8 text-muted-foreground">No rooms are open for booking yet.</p>}
+          <ol className="mt-12 border-b border-border">
+            {types.map((type, index) => {
+              const slot = byType.get(type.id);
+              const cover = coverOf(type);
+              return (
+                <motion.li
+                  key={type.id}
+                  {...rise(Math.min(index, 4) * 0.05)}
+                  className={cn(
+                    "group grid gap-x-8 gap-y-4 border-t border-border py-7 transition-colors md:grid-cols-12 md:items-center md:py-8",
+                    wanted === type.id && "bg-card",
+                  )}
+                >
+                  <p className="font-display text-2xl leading-none text-gold tabular-nums md:col-span-1 md:text-3xl">{String(index + 1).padStart(2, "0")}</p>
+                  <div className="md:col-span-5">
+                    <h3 className="text-3xl leading-none text-foreground md:text-4xl">{type.name}</h3>
+                    {type.description && <p className="mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">{type.description}</p>}
                   </div>
-                )}
-                <div className="flex flex-1 flex-col">
-                  <h3 className="text-lg font-medium text-foreground">{type.name}</h3>
-                  <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
-                    <Users aria-hidden="true" className="size-3.5 text-gold" />
-                    Sleeps {type.capacity}
-                    {type.amenities.length > 0 && ` · ${type.amenities.join(" · ")}`}
-                  </p>
-                  {type.description && <p className="mt-2 text-sm text-foreground/80">{type.description}</p>}
-                  <div className="mt-auto flex flex-wrap items-end justify-between gap-3 pt-4">
+                  <div className="md:col-span-3">
+                    {cover?.urls["480"] ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={cover.urls["480"]}
+                        srcSet={Object.entries(cover.urls).map(([w, url]) => `${url} ${w}w`).join(", ")}
+                        sizes="(min-width: 768px) 16rem, 100vw"
+                        alt={cover.caption || `${type.name} room`}
+                        loading="lazy"
+                        className="mb-3 aspect-[3/2] w-full object-cover grayscale-[0.35] transition-[filter] duration-500 group-hover:grayscale-0 md:max-w-64"
+                      />
+                    ) : null}
+                    <p className="label text-muted-foreground">Sleeps {type.capacity}</p>
+                    {type.amenities.length > 0 && <p className="mt-1.5 text-sm leading-relaxed text-foreground">{type.amenities.join(", ")}</p>}
+                  </div>
+                  <div className="flex flex-wrap items-end justify-between gap-4 md:col-span-3 md:flex-col md:items-end md:text-right">
                     <div>
-                      <p className="text-lg font-semibold text-gold-soft">
+                      <p className="font-display text-3xl leading-none text-foreground">
                         {inr(slot?.price_per_night ?? type.price_per_night)}
-                        <span className="text-sm font-normal text-muted-foreground"> / night</span>
+                        <span className="ml-1.5 font-sans text-xs text-muted-foreground">/ night</span>
                       </p>
                       {slot && (
-                        <p className={`text-sm ${slot.available ? "text-emerald-700" : "text-red-700"}`}>
-                          {slot.available
-                            ? `${slot.available} free · ${inr(slot.amount)} total`
-                            : "Not available for these dates"}
+                        <p className={`mt-2 text-sm ${slot.available ? "text-emerald-700" : "text-red-700"}`}>
+                          {slot.available ? `${slot.available} free · ${inr(slot.amount)} total` : "Not available for these dates"}
                         </p>
                       )}
                     </div>
                     {slot && slot.available > 0 ? (
-                      <Link href={bookHref(type.id)} className={goldButton}>
-                        Request this room
+                      <Link href={bookHref(type.id)} className={primaryLink}>
+                        Request
+                        <ArrowRight aria-hidden="true" className="size-3.5" />
                       </Link>
                     ) : (
                       !slot && (
@@ -304,21 +284,38 @@ export default function HomePage() {
                             setWanted(type.id);
                             scrollToDates();
                           }}
-                          className="text-sm text-muted-foreground underline-offset-4 hover:text-gold-soft hover:underline"
+                          className={secondaryLink}
                         >
-                          Pick dates to check
+                          Check dates
                         </button>
                       )
                     )}
                   </div>
-                </div>
-              </TiltCard>
-            );
-          })}
+                </motion.li>
+              );
+            })}
+          </ol>
         </div>
       </section>
 
-      <section aria-labelledby="walk-heading" className="relative mt-20">
+      <section aria-labelledby="how-heading" className="mx-auto w-full max-w-[88rem] px-4 py-20 md:px-8 md:py-28">
+        <SectionHead no="04" kicker="Booking" id="how-heading" title="How a stay is arranged" />
+        <ol className="mt-12 grid border-y border-border md:grid-cols-3">
+          {[
+            ["First", "You send a request", "Choose dates and a room, and tell us who is staying and why you are visiting."],
+            ["Then", "The college approves it", "Your request goes to the college for approval. You hear back by email, and nothing is charged until then."],
+            ["Last", "You pay, and arrive", "Pay online once approved. Your room is allotted and waiting at the desk when you check in."],
+          ].map(([when, title, body], i) => (
+            <li key={when} className={cn("border-border py-8 md:px-8 md:py-10", i > 0 && "border-t md:border-l md:border-t-0", i === 0 && "md:pl-0")}>
+              <p className="label text-gold">{when}</p>
+              <h3 className="mt-4 text-3xl leading-tight text-foreground">{title}</h3>
+              <p className="mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground">{body}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section aria-labelledby="walk-heading" className="relative border-t border-border">
         <h2 id="walk-heading" className="sr-only">
           Walk through the rooms
         </h2>
@@ -327,14 +324,16 @@ export default function HomePage() {
           height="min(70svh, 640px)"
           aria-label="Rooms at the guesthouse"
           title={
-            <span className="block rounded-[2rem] border border-gold/15 bg-black/55 px-6 py-8 backdrop-blur-md md:px-12">
-              <span className="block text-[11px] font-semibold uppercase tracking-[0.35em] text-gold">Walk through</span>
-              <span className="mt-3 block font-display text-4xl font-semibold text-gold-soft md:text-5xl">Every room, one request away</span>
+            <span className="block border border-border bg-background px-8 py-9 md:px-14 md:py-12">
+              <span className="label block text-muted-foreground">The corridor</span>
+              <span className="mt-4 block font-display text-4xl leading-none text-foreground md:text-6xl">
+                Every room, one <em className="text-gold">request</em> away
+              </span>
             </span>
           }
         >
           <div className="absolute inset-x-0 bottom-10 flex justify-center px-4">
-            <button type="button" onClick={scrollToDates} className={goldButton}>
+            <button type="button" onClick={scrollToDates} className={primaryLink}>
               Check availability
             </button>
           </div>

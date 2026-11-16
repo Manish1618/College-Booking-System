@@ -4,23 +4,29 @@ import type { BookingStatus } from "@/lib/types";
 
 const cx = (...parts: (string | false | null | undefined)[]) => parts.filter(Boolean).join(" ");
 
+/** Shared shape of every button and button-like link: squared, upper-case, letter-spaced. */
+export const buttonBase =
+  "inline-flex min-h-11 items-center justify-center gap-2.5 rounded-[2px] px-5 text-[12px] font-semibold uppercase tracking-[0.14em] transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transition-none";
+/** For links that should look like the primary and secondary buttons. */
+export const primaryLink = `${buttonBase} bg-primary text-primary-foreground hover:bg-gold-soft`;
+export const secondaryLink = `${buttonBase} border border-input text-foreground hover:border-foreground`;
+
 export function Button({
   variant = "primary",
   className,
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "danger" }) {
   const styles = {
-    primary:
-      "bg-gradient-to-b from-gold-soft to-gold text-black shadow-[0_10px_28px_-14px_rgb(212_175_55/0.9)] enabled:hover:-translate-y-px enabled:hover:shadow-[0_14px_34px_-14px_rgb(212_175_55/1)] print:bg-none print:border print:border-black",
-    secondary: "border border-slate-300 bg-transparent text-slate-800 hover:border-gold/60 hover:bg-gold/10",
-    danger: "border border-red-300 bg-transparent text-red-700 hover:bg-red-50",
+    primary: "bg-primary text-primary-foreground enabled:hover:bg-gold-soft print:border print:border-black",
+    secondary: "border border-slate-300 bg-transparent text-slate-800 enabled:hover:border-slate-800",
+    danger: "border border-red-300 bg-transparent text-red-700 enabled:hover:bg-red-50",
   }[variant];
   return (
     <button
       type="button"
       {...props}
       className={cx(
-        "inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-5 text-sm font-semibold tracking-wide transition-[color,background-color,border-color,translate,box-shadow] duration-200 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none",
+        buttonBase,
         styles,
         className,
       )}
@@ -29,7 +35,7 @@ export function Button({
 }
 
 export const inputClass =
-  "block min-h-11 w-full rounded-xl border border-slate-300 bg-white/[0.03] px-3.5 text-base text-slate-900 shadow-[inset_0_1px_2px_rgb(0_0_0/0.25)] transition-colors placeholder:text-slate-400 hover:border-gold/40 focus:border-gold/70 print:bg-transparent";
+  "block min-h-11 w-full rounded-[2px] border border-slate-300 bg-transparent px-3.5 text-base text-slate-900 transition-colors placeholder:text-slate-400 hover:border-slate-500 focus:border-gold print:bg-transparent";
 
 export function Field({
   label,
@@ -46,7 +52,7 @@ export function Field({
   return (
     <div>
       <label className="block">
-        <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
+        <span className="label mb-1.5 block text-slate-600">{label}</span>
         {children}
       </label>
       {hint && !error && <p className="mt-1 text-sm text-slate-500">{hint}</p>}
@@ -64,7 +70,7 @@ export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
 }
 
 export function Card({ children, className }: { children: ReactNode; className?: string }) {
-  return <section className={cx("glass rounded-2xl p-5 md:p-6 print:border print:border-slate-300 print:shadow-none", className)}>{children}</section>;
+  return <section className={cx("glass rounded-[3px] p-5 md:p-7 print:border print:border-slate-300", className)}>{children}</section>;
 }
 
 export function Notice({ tone = "info", children }: { tone?: "info" | "error" | "success"; children: ReactNode }) {
@@ -74,7 +80,7 @@ export function Notice({ tone = "info", children }: { tone?: "info" | "error" | 
     success: "border-emerald-200 bg-emerald-50 text-emerald-900",
   }[tone];
   return (
-    <div role={tone === "error" ? "alert" : "status"} className={cx("rounded-xl border px-4 py-3 text-sm backdrop-blur-sm", styles)}>
+    <div role={tone === "error" ? "alert" : "status"} className={cx("rounded-[2px] border px-4 py-3 text-sm", styles)}>
       {children}
     </div>
   );
@@ -97,7 +103,7 @@ const STATUS_TONES: Record<BookingStatus, string> = {
 
 export function StatusBadge({ status, label }: { status: BookingStatus; label: string }) {
   return (
-    <span className={cx("inline-block rounded-full px-2.5 py-0.5 text-xs font-medium", STATUS_TONES[status])}>
+    <span className={cx("inline-block rounded-[2px] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.08em]", STATUS_TONES[status])}>
       {label}
     </span>
   );
@@ -105,10 +111,9 @@ export function StatusBadge({ status, label }: { status: BookingStatus; label: s
 
 export function PageTitle({ title, children }: { title: string; children?: ReactNode }) {
   return (
-    <div className="mb-8">
-      <span aria-hidden="true" className="mb-3 block h-px w-12 bg-gradient-to-r from-gold to-transparent print:hidden" />
-      <h1 className="text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">{title}</h1>
-      {children && <p className="mt-2 max-w-2xl text-slate-600">{children}</p>}
+    <div className="mb-10 border-b border-slate-200 pb-7 print:border-0">
+      <h1 className="text-4xl leading-[1.05] text-slate-900 md:text-5xl">{title}</h1>
+      {children && <p className="mt-3 max-w-2xl text-slate-600">{children}</p>}
     </div>
   );
 }

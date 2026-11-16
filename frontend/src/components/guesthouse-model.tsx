@@ -12,7 +12,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
 
-const GOLD = "#d4af37";
+const GOLD = "#c2a063";
 const STONE = "#2a2620";
 const STONE_LIGHT = "#3a342a";
 const TRIM = "#b8953a";
@@ -219,11 +219,11 @@ function hasWebGL() {
   }
 }
 
-/** Shown when the browser cannot draw 3D: a quiet gold glow instead of the model. */
+/** Shown when the browser cannot draw 3D: a plain framed panel instead of the model. */
 function StillFallback() {
   return (
     <div className="grid size-full place-items-center">
-      <div className="size-48 rounded-full border border-gold/30 bg-[radial-gradient(circle_at_40%_35%,rgb(212_175_55/0.35),transparent_65%)] shadow-[0_0_80px_-10px_rgb(212_175_55/0.4)]" />
+      <div className="aspect-[4/3] w-2/3 border border-border bg-card" />
     </div>
   );
 }
