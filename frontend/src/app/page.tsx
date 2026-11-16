@@ -11,10 +11,9 @@ import { DayPicker, type DateRange } from "react-day-picker";
 import dynamic from "next/dynamic";
 
 import Endless, { type EndlessSlide } from "@/components/ui/endless";
-import SushiConveyorMenu, { type ConveyorDish } from "@/components/ui/sushi-conveyor-menu";
+import { RoomShowcase } from "@/components/room-showcase";
 import { TiltCard } from "@/components/tilt-card";
 import { api, fmtDate, inr, isoDate } from "@/lib/api";
-import { bedPlate, priceTiers } from "@/lib/room-plates";
 import type { Availability, Photo, RoomType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -54,36 +53,6 @@ export default function HomePage() {
   const types = useMemo(() => roomTypes.data ?? [], [roomTypes.data]);
   const bookHref = (typeId: string) => `/book?type=${typeId}&check_in=${checkIn}&check_out=${checkOut}`;
 
-  const tiers = useMemo(() => priceTiers(types), [types]);
-  const plates = useMemo<ConveyorDish[]>(
-    () =>
-      types.map((type) => {
-        const slot = byType.get(type.id);
-        const cover = coverOf(type);
-        const photo = cover?.urls["480"];
-        const details = [`Sleeps ${type.capacity}`, ...type.amenities];
-        if (slot) details.push(slot.available ? `${slot.available} free for your dates` : "Full for your dates");
-        return {
-          id: type.id,
-          name: type.name,
-          price: `${inr(slot?.price_per_night ?? type.price_per_night)} / night`,
-          tier: tiers.get(type.id),
-          description: type.description || `A ${type.capacity > 1 ? "room for " + type.capacity : "single room"} at the college guesthouse.`,
-          details,
-          image: photo ?? bedPlate(type.capacity),
-          crop: !!photo,
-        };
-      }),
-    [types, byType, tiers],
-  );
-  const legend = useMemo(() => {
-    const out: { [tier: number]: string } = {};
-    for (const type of types) {
-      const tier = tiers.get(type.id) ?? 1;
-      if (!out[tier] && type.price_per_night) out[tier] = inr(type.price_per_night);
-    }
-    return out;
-  }, [types, tiers]);
   const slides = useMemo<EndlessSlide[]>(() => {
     const fromTypes = types.map((type) => {
       const cover = coverOf(type);
@@ -107,13 +76,13 @@ export default function HomePage() {
     datesRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
   }
 
-  function chooseRoom(dish: ConveyorDish) {
-    const slot = byType.get(dish.id);
+  function chooseRoom(typeId: string) {
+    const slot = byType.get(typeId);
     if (checkIn && checkOut && slot && slot.available > 0) {
-      router.push(bookHref(dish.id));
+      router.push(bookHref(typeId));
       return;
     }
-    setWanted(dish.id);
+    setWanted(typeId);
     scrollToDates();
   }
 
@@ -258,27 +227,7 @@ export default function HomePage() {
         </motion.div>
       </div>
 
-      {plates.length > 0 && (
-        <motion.div {...rise()} className="relative mt-10">
-          <SushiConveyorMenu
-            className="bg-transparent"
-            dialogClassName="dark"
-            items={plates}
-            legend={legend}
-            eyebrow="Rooms at the guesthouse"
-            heading="Choose your room"
-            caption="Hover to stop the carousel, drag to spin it, pick a room to see it up close."
-            autoplay
-            onAdd={chooseRoom}
-            labels={{ add: "Book this room", close: "Close", previous: "Previous room", next: "Next room", pause: "Pause carousel" }}
-            action={
-              <a href="#rooms" className={ghostButton}>
-                Compare all rooms
-              </a>
-            }
-          />
-        </motion.div>
-      )}
+      <RoomShowcase types={types} slots={byType} onBook={(type) => chooseRoom(type.id)} />
 
       <section id="rooms" aria-labelledby="rooms-heading" className="relative mx-auto mt-10 w-full max-w-6xl scroll-mt-6 px-4">
         <motion.h2 {...rise()} id="rooms-heading" className="mb-4 flex items-center gap-2 text-xl font-medium text-gold-soft">
