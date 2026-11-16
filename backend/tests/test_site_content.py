@@ -45,3 +45,17 @@ def test_required_wording_cannot_be_emptied():
     )
     assert response.status_code == 400
     assert "name" in response.data and "headline_accent" not in response.data
+
+
+def test_saving_one_field_keeps_another_managers_change():
+    """Two managers edit different fields at once: the second save must not put back the first one's old value."""
+    from apps.rooms.models import SiteContent
+    from apps.rooms.serializers import SiteContentSerializer
+
+    stale = SiteContent.load()
+    SiteContent.objects.filter(pk=stale.pk).update(name="Tagore Guest House")
+    serializer = SiteContentSerializer(stale, data={"tagline": "On the north lawn"}, partial=True)
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+    fresh = SiteContent.load()
+    assert (fresh.name, fresh.tagline) == ("Tagore Guest House", "On the north lawn")

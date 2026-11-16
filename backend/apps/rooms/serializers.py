@@ -63,7 +63,7 @@ class RoomSerializer(WritesOnlyChangedFields, serializers.ModelSerializer):
         read_only_fields = ["id"]
 
 
-class SiteContentSerializer(serializers.ModelSerializer):
+class SiteContentSerializer(WritesOnlyChangedFields, serializers.ModelSerializer):
     class Meta:
         model = SiteContent
         exclude = ["id"]
