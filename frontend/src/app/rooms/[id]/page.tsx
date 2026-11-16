@@ -48,7 +48,8 @@ export default function RoomPage() {
     );
   }
 
-  const photos = [...type.photos].sort((a, b) => Number(b.is_cover) - Number(a.is_cover));
+  // A photo that was just uploaded has no sizes until it has been processed: leave it out until then.
+  const photos = type.photos.filter((p) => p.urls["480"]).sort((a, b) => Number(b.is_cover) - Number(a.is_cover));
   const photo = photos[Math.min(shown, photos.length - 1)];
   const slot = availability.data?.results.find((r) => r.room_type === type.id);
   const others = types.filter((t) => t.id !== type.id);
