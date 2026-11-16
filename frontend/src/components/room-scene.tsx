@@ -7,7 +7,7 @@
  * The room eases toward the pointer; under reduced motion it stays still.
  */
 
-import { ContactShadows, RoundedBox } from "@react-three/drei";
+import { ContactShadows, Environment, Lightformer, RoundedBox } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Component, useEffect, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
@@ -425,7 +425,13 @@ export default function RoomScene({ capacity, tier, className, label }: RoomScen
             gl={{ antialias: true, alpha: true }}
           >
             <Rig />
-            <ambientLight intensity={0.8} color="#ffe8c7" />
+            <ambientLight intensity={0.55} color="#ffe8c7" />
+            {/* Soft window and lamp light with reflections, built in the browser: no image is downloaded. */}
+            <Environment resolution={128} frames={1} environmentIntensity={0.7}>
+              <Lightformer form="rect" intensity={2.4} color="#fff0d6" position={[3, 5, 5]} scale={[7, 5, 1]} target={[0, 0, 0]} />
+              <Lightformer form="rect" intensity={1.2} color="#a9bbe6" position={[-6, 3, 1]} scale={[5, 5, 1]} target={[0, 0, 0]} />
+              <Lightformer form="rect" intensity={0.8} color="#ffd29a" position={[0, 6, -4]} scale={[8, 3, 1]} target={[0, 0, 0]} />
+            </Environment>
             <hemisphereLight args={["#ffe2b0", "#1a120a", 0.8]} />
             <directionalLight
               castShadow

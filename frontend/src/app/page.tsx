@@ -5,7 +5,7 @@ import { ArrowDown, ArrowRight } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { DayPicker, type DateRange } from "react-day-picker";
 
 import dynamic from "next/dynamic";
@@ -28,6 +28,13 @@ const PLACEHOLDER_SLIDES: EndlessSlide[] = [
   { label: "Book in minutes", sublabel: "Online" },
 ];
 
+const WIDE = "(min-width: 768px)";
+function subscribeWide(notify: () => void) {
+  const media = window.matchMedia(WIDE);
+  media.addEventListener("change", notify);
+  return () => media.removeEventListener("change", notify);
+}
+
 const coverOf = (type: RoomType): Photo | undefined => type.photos.find((p) => p.is_cover) ?? type.photos[0];
 
 export default function HomePage() {
@@ -36,6 +43,8 @@ export default function HomePage() {
   const datesRef = useRef<HTMLElement>(null);
   const [range, setRange] = useState<DateRange | undefined>();
   const [wanted, setWanted] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const twoMonths = useSyncExternalStore(subscribeWide, () => window.matchMedia(WIDE).matches, () => false);
   const checkIn = range?.from ? isoDate(range.from) : null;
   const checkOut = range?.to && range.from && range.to > range.from ? isoDate(range.to) : null;
 
@@ -65,10 +74,12 @@ export default function HomePage() {
     const price = Number(t.price_per_night);
     return t.price_per_night && (min === null || price < min) ? price : min;
   }, null);
+  const nights = availability.data?.nights ?? (range?.from && range.to && checkOut ? Math.round((range.to.getTime() - range.from.getTime()) / 86_400_000) : null);
   const wantedType = types.find((t) => t.id === wanted);
   const wantedSlot = wanted ? byType.get(wanted) : undefined;
 
   function scrollToDates() {
+    setOpen(true);
     datesRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
   }
 
@@ -142,37 +153,68 @@ export default function HomePage() {
       </section>
 
       <section ref={datesRef} aria-labelledby="dates-heading" className="mx-auto w-full max-w-[88rem] scroll-mt-20 px-4 pt-20 md:px-8 md:pt-28">
-        <SectionHead no="01" kicker="Dates" id="dates-heading" title="When are you staying?" aside="Choose your arrival and departure. Stays run from one to fourteen nights." />
-        <div className="mt-10 grid gap-10 md:grid-cols-12">
-          <div className="md:col-span-5 md:col-start-4 lg:col-span-4 lg:col-start-4">
-            <div className="inline-block border border-border p-3 sm:p-5">
-              <DayPicker mode="range" selected={range} onSelect={setRange} disabled={{ before: new Date() }} min={1} max={14} />
-            </div>
+        <SectionHead no="01" kicker="Dates" id="dates-heading" title="When are you staying?" aside="Rooms show what is free as soon as both dates are in." />
+        <div className="mt-10 grid border border-border sm:grid-cols-2 lg:grid-cols-[1fr_1fr_minmax(8rem,auto)_auto]">
+          {([["Arrival", checkIn], ["Departure", checkOut]] as const).map(([label, value], i) => (
+            <button
+              key={label}
+              type="button"
+              aria-expanded={open}
+              aria-controls="stay-calendar"
+              onClick={() => setOpen((o) => !o)}
+              className={cn("border-border px-5 py-5 text-left transition-colors hover:bg-card md:px-7", i === 1 && "border-t sm:border-l sm:border-t-0")}
+            >
+              <span className="label block text-muted-foreground">{label}</span>
+              <span className={cn("mt-2 block font-display text-3xl leading-none md:text-4xl", value ? "text-foreground" : "text-muted-foreground/60")}>
+                {value ? fmtDate(value) : "Add date"}
+              </span>
+            </button>
+          ))}
+          <div className="border-t border-border px-5 py-5 md:px-7 lg:border-l lg:border-t-0" aria-live="polite">
+            <span className="label block text-muted-foreground">Nights</span>
+            <span className="mt-2 block font-display text-3xl leading-none text-foreground md:text-4xl">{nights ?? "—"}</span>
           </div>
-          <div className="flex flex-col gap-6 md:col-span-4 lg:col-span-5">
-            <div aria-live="polite">
-              {checkIn && checkOut ? (
-                <>
-                  <dl className="grid grid-cols-2 border-y border-border">
-                    <div className="py-5 pr-4">
-                      <dt className="label text-muted-foreground">Arrive</dt>
-                      <dd className="mt-2 font-display text-3xl leading-none md:text-4xl">{fmtDate(checkIn)}</dd>
-                    </div>
-                    <div className="border-l border-border py-5 pl-5">
-                      <dt className="label text-muted-foreground">Leave</dt>
-                      <dd className="mt-2 font-display text-3xl leading-none md:text-4xl">{fmtDate(checkOut)}</dd>
-                    </div>
-                  </dl>
-                  <p className="mt-4 text-sm text-muted-foreground">
-                    {availability.data ? `${availability.data.nights} ${availability.data.nights === 1 ? "night" : "nights"}. Rooms below now show what is free.` : "Checking rooms…"}
-                  </p>
-                </>
-              ) : (
-                <p className="font-display text-3xl leading-tight text-muted-foreground md:text-4xl">
-                  Choose two dates and we will show you which rooms are free.
-                </p>
-              )}
-            </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (checkIn && checkOut) document.getElementById("showcase")?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+              else setOpen(true);
+            }}
+            className={cn(primaryLink, "min-h-16 rounded-none border-t border-border px-8 lg:border-t-0")}
+          >
+            {checkIn && checkOut ? "See free rooms" : "Check availability"}
+            <ArrowRight aria-hidden="true" className="size-3.5" />
+          </button>
+        </div>
+        <AnimatePresence initial={false}>
+          {open && (
+            <motion.div
+              id="stay-calendar"
+              initial={reduce ? false : { opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.2 }}
+              className="flex flex-wrap items-start justify-between gap-6 border border-t-0 border-border p-4 md:p-7"
+            >
+              <DayPicker
+                mode="range"
+                numberOfMonths={twoMonths ? 2 : 1}
+                selected={range}
+                onSelect={(next) => {
+                  setRange(next);
+                  if (next?.from && next.to && next.to > next.from) setOpen(false);
+                }}
+                disabled={{ before: new Date() }}
+                min={1}
+                max={14}
+              />
+              <p className="max-w-[16rem] text-sm leading-relaxed text-muted-foreground">
+                Pick the day you arrive, then the day you leave. Stays run from one to fourteen nights.
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <div className="mt-8 flex max-w-2xl flex-col gap-6">
             <AnimatePresence mode="popLayout">
               {wantedType && (
                 <motion.div
@@ -210,7 +252,6 @@ export default function HomePage() {
                 {availability.error.message}
               </p>
             )}
-          </div>
         </div>
       </section>
 

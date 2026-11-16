@@ -7,7 +7,7 @@
  * and it stops rendering while it is off screen.
  */
 
-import { ContactShadows, Sparkles } from "@react-three/drei";
+import { ContactShadows, Environment, Lightformer } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
@@ -261,7 +261,7 @@ export default function GuesthouseModel({ className }: { className?: string }) {
             camera={{ position: [0, 5.2, 14.5], fov: 34 }}
             gl={{ antialias: true, alpha: true }}
           >
-            <ambientLight intensity={0.35} />
+            <ambientLight intensity={0.2} />
             <hemisphereLight args={["#c9d6ff", "#2a1f0f", 0.45]} />
             <directionalLight
               castShadow
@@ -278,7 +278,12 @@ export default function GuesthouseModel({ className }: { className?: string }) {
             <directionalLight position={[-6, 3, -4]} intensity={0.5} color="#8aa0ff" />
             <House animate={!reduced} />
             <ContactShadows position={[0, -1.3, 0]} opacity={0.6} scale={14} blur={2.6} far={3} />
-            {!reduced && <Sparkles count={40} scale={[9, 4, 6]} position={[0, 1.2, 0]} size={2.2} speed={0.25} color={GOLD} opacity={0.7} />}
+            {/* Soft dusk light with reflections, built in the browser: no image is downloaded. */}
+            <Environment resolution={128} frames={1} environmentIntensity={0.55}>
+              <Lightformer form="rect" intensity={2.2} color="#ffe3b3" position={[4, 6, 5]} scale={[8, 5, 1]} target={[0, 0, 0]} />
+              <Lightformer form="rect" intensity={1.1} color="#93a6d8" position={[-7, 3, -3]} scale={[7, 5, 1]} target={[0, 0, 0]} />
+              <Lightformer form="ring" intensity={0.8} color="#ffd9a0" position={[0, 8, 0]} rotation={[Math.PI / 2, 0, 0]} scale={5} />
+            </Environment>
           </Canvas>
         </ModelBoundary>
       )}
