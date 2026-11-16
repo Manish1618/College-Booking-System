@@ -15,6 +15,7 @@ import { RoomShowcase } from "@/components/room-showcase";
 import { SectionHead } from "@/components/section-head";
 import { primaryLink, secondaryLink } from "@/components/ui";
 import { api, fmtDate, inr, isoDate } from "@/lib/api";
+import { useSiteContent } from "@/lib/hooks";
 import type { Availability, Photo, RoomType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -40,6 +41,7 @@ const coverOf = (type: RoomType): Photo | undefined => type.photos.find((p) => p
 export default function HomePage() {
   const router = useRouter();
   const reduce = useReducedMotion();
+  const site = useSiteContent();
   const datesRef = useRef<HTMLElement>(null);
   const [range, setRange] = useState<DateRange | undefined>();
   const [wanted, setWanted] = useState<string | null>(null);
@@ -117,14 +119,14 @@ export default function HomePage() {
             transition={{ duration: 0.8, ease: [0.22, 0.85, 0.3, 1] }}
           >
             <p className="label text-muted-foreground">
-              College Guesthouse <span aria-hidden="true" className="mx-2 text-gold">/</span> Rooms on campus
+              {site.name} <span aria-hidden="true" className="mx-2 text-gold">/</span> {site.tagline}
             </p>
             <h1 id="hero-heading" className="mt-6 max-w-[11ch] text-[clamp(3.5rem,10.5vw,9.5rem)] leading-[0.88] tracking-[-0.03em] text-foreground">
-              Stay on campus, <em className="text-gold">quietly.</em>
+              {site.headline} {site.headline_accent && <em className="text-gold">{site.headline_accent}</em>}
             </h1>
             <div className="pointer-events-auto mt-10 grid max-w-xl gap-8 sm:grid-cols-[1fr_auto] sm:items-end">
               <p className="text-base leading-relaxed text-muted-foreground">
-                Pick your dates and a room. The college approves your request, then you pay online and your room is ready when you arrive.
+                {site.intro}
               </p>
               <div className="flex flex-wrap gap-3">
                 <button type="button" onClick={scrollToDates} className={primaryLink}>
@@ -343,9 +345,9 @@ export default function HomePage() {
         <SectionHead no="04" kicker="Booking" id="how-heading" title="How a stay is arranged" />
         <ol className="mt-12 grid border-y border-border md:grid-cols-3">
           {[
-            ["First", "You send a request", "Choose dates and a room, and tell us who is staying and why you are visiting."],
-            ["Then", "The college approves it", "Your request goes to the college for approval. You hear back by email, and nothing is charged until then."],
-            ["Last", "You pay, and arrive", "Pay online once approved. Your room is allotted and waiting at the desk when you check in."],
+            ["First", site.step1_title, site.step1_body],
+            ["Then", site.step2_title, site.step2_body],
+            ["Last", site.step3_title, site.step3_body],
           ].map(([when, title, body], i) => (
             <li key={when} className={cn("border-border py-8 md:px-8 md:py-10", i > 0 && "border-t md:border-l md:border-t-0", i === 0 && "md:pl-0")}>
               <p className="label text-gold">{when}</p>

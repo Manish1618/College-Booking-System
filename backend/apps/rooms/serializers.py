@@ -4,7 +4,7 @@ from rest_framework import serializers
 
 from config.serializers import WritesOnlyChangedFields
 
-from .models import Room, RoomPhoto, RoomType, Tariff
+from .models import Room, RoomPhoto, RoomType, SiteContent, Tariff
 
 
 class RoomPhotoSerializer(WritesOnlyChangedFields, serializers.ModelSerializer):
@@ -61,3 +61,10 @@ class RoomSerializer(WritesOnlyChangedFields, serializers.ModelSerializer):
         model = Room
         fields = ["id", "number", "room_type", "room_type_name", "floor", "is_active"]
         read_only_fields = ["id"]
+
+
+class SiteContentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SiteContent
+        exclude = ["id"]
+        read_only_fields = ["updated_at"]
