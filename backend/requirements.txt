@@ -63,7 +63,7 @@ django-storages==1.14.6
     # via -r requirements.in
 djangorestframework==3.18.3
     # via -r requirements.in
-fonttools==4.68.0
+fonttools[woff]==4.68.0
     # via weasyprint
 gunicorn==27.0.1
     # via -r requirements.in
@@ -85,7 +85,7 @@ pillow==13.0.0
     #   weasyprint
 prompt-toolkit==3.0.53
     # via click-repl
-psycopg==3.3.9
+psycopg[binary]==3.3.9
     # via -r requirements.in
 psycopg-binary==3.3.9
     # via psycopg
@@ -101,7 +101,7 @@ python-dateutil==2.9.0.post0
     # via
     #   botocore
     #   celery
-redis==8.1.0
+redis==8.2.0
     # via
     #   -r requirements.in
     #   django-redis
